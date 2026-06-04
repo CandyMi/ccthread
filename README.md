@@ -52,9 +52,26 @@ int main(void) {
 Compile:
 
 ```sh
-cc -o demo demo.c ccthread.c -lpthread     # POSIX
-cl demo.c ccthread.c                        # MSVC static
-cl /D CCTHREAD_BUILD_DLL ccthread.c /LD     # MSVC DLL
+# Manual (POSIX)
+cc -o demo demo.c ccthread.c -lpthread
+
+# Manual (MSVC)
+cl demo.c ccthread.c
+```
+
+Or with **CMake** (recommended):
+
+```sh
+cmake -S . -B build
+cmake --build build                # static libs + examples
+./build/ccthread_basic             # run an example
+
+# Shared libraries
+cmake -S . -B build -D BUILD_SHARED_LIBS=ON
+cmake --build build
+
+# Install
+cmake --install build --prefix /usr/local
 ```
 
 ## API reference
@@ -111,9 +128,11 @@ ccsem_destroy(sem);
 ```
 
 ```sh
-cc -o demo demo.c ccsem.c -lpthread       # POSIX
-cl demo.c ccsem.c                          # MSVC static
+# Manual (POSIX)
+cc -o demo demo.c ccsem.c -lpthread
 ```
+
+Or via the same CMake build — both `libccsem` and `ccsem_*` examples are built automatically.
 
 ## API reference
 
@@ -160,8 +179,13 @@ See [`examples/`](examples/) for the full source.
 Run an example:
 
 ```sh
+# Manual
 cc -I. -o example examples/ccthread_basic.c ccthread.c -lpthread
 ./example
+
+# CMake (builds all examples automatically)
+cmake -S . -B build && cmake --build build
+./build/ccthread_basic
 ```
 
 ---
