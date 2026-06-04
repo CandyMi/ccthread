@@ -27,6 +27,69 @@ Both libraries share the same design:
 
 ---
 
+# Build
+
+**CMake is the recommended way.**  One configure step builds everything:
+libraries, examples, shared or static — all platforms.
+
+```sh
+cmake -S . -B build
+cmake --build build
+```
+
+That produces:
+
+```
+build/
+  libccthread.a       (or .lib on Windows)
+  libccsem.a
+  ccthread_basic      (or .exe)
+  ccthread_detach
+  ccthread_naming
+  ccsem_producer_consumer
+  ccsem_timeout
+```
+
+### CMake options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `BUILD_SHARED_LIBS` | `OFF` | `ON` → `.so` / `.dylib` / `.dll` |
+| `BUILD_EXAMPLES` | `ON` | `OFF` → libraries only |
+
+```sh
+# Shared libraries + examples
+cmake -S . -B build -D BUILD_SHARED_LIBS=ON
+cmake --build build
+
+# Libraries only
+cmake -S . -B build -D BUILD_EXAMPLES=OFF
+cmake --build build
+```
+
+### Install
+
+```sh
+cmake --install build --prefix /usr/local
+# → /usr/local/lib/libccthread.a  libccsem.a
+# → /usr/local/include/ccthread.h  ccsem.h
+```
+
+### Manual compilation (no CMake)
+
+If you prefer not to use CMake, just compile the `.c` files directly:
+
+```sh
+# POSIX
+cc -o myapp myapp.c ccthread.c       -lpthread
+cc -o myapp myapp.c ccsem.c ccthread.c -lpthread   # ccsem examples need ccthread too
+
+# MSVC
+cl myapp.c ccthread.c
+```
+
+---
+
 # ccthread — thread library
 
 ## Quick start
@@ -49,30 +112,7 @@ int main(void) {
 }
 ```
 
-Compile:
-
-```sh
-# Manual (POSIX)
-cc -o demo demo.c ccthread.c -lpthread
-
-# Manual (MSVC)
-cl demo.c ccthread.c
-```
-
-Or with **CMake** (recommended):
-
-```sh
-cmake -S . -B build
-cmake --build build                # static libs + examples
-./build/ccthread_basic             # run an example
-
-# Shared libraries
-cmake -S . -B build -D BUILD_SHARED_LIBS=ON
-cmake --build build
-
-# Install
-cmake --install build --prefix /usr/local
-```
+> Build with `cmake -S . -B build && cmake --build build`.  See [Build](#build) above for details.
 
 ## API reference
 
@@ -127,12 +167,7 @@ ccsem_wait(sem);                  // P: count 1 → 0, returns immediately
 ccsem_destroy(sem);
 ```
 
-```sh
-# Manual (POSIX)
-cc -o demo demo.c ccsem.c -lpthread
-```
-
-Or via the same CMake build — both `libccsem` and `ccsem_*` examples are built automatically.
+> Build with `cmake -S . -B build && cmake --build build`.  See [Build](#build) above for details.
 
 ## API reference
 
@@ -176,38 +211,43 @@ See [`examples/`](examples/) for the full source.
 | [`ccsem_producer_consumer.c`](examples/ccsem_producer_consumer.c) | bounded-buffer with `wait` / `post` |
 | [`ccsem_timeout.c`](examples/ccsem_timeout.c) | `trywait` polling, `timedwait` with deadline, periodic check |
 
-Run an example:
+Build & run with CMake:
 
 ```sh
-# Manual
-cc -I. -o example examples/ccthread_basic.c ccthread.c -lpthread
-./example
-
-# CMake (builds all examples automatically)
 cmake -S . -B build && cmake --build build
 ./build/ccthread_basic
+./build/ccsem_producer_consumer
+```
+
+Or manually:
+
+```sh
+cc -I. examples/ccthread_basic.c ccthread.c -lpthread -o /tmp/ex && /tmp/ex
 ```
 
 ---
 
 ## Shared library / DLL
 
-Define `_BUILD_DLL` when building, `_USE_DLL` when consuming:
+CMake handles everything automatically — pass `-D BUILD_SHARED_LIBS=ON` and
+the `_BUILD_DLL`/`_USE_DLL` defines are set via CMake generator expressions.
+
+Manual invocation (if not using CMake):
 
 ```sh
-# POSIX shared library
+# POSIX
 cc -DCCTHREAD_BUILD_DLL -fvisibility=hidden -shared -fPIC \
    -o libccthread.so ccthread.c -lpthread
 cc -DCCTHREAD_USE_DLL -o demo demo.c -L. -lccthread
 ```
 
 ```bat
-:: Windows DLL
+:: Windows
 cl /D CCTHREAD_BUILD_DLL ccthread.c /LD
 cl /D CCTHREAD_USE_DLL demo.c ccthread.lib
 ```
 
-Static linking (no `_DLL` macros) works everywhere with zero flags.
+Static linking (no macros) works everywhere with zero flags — that's the default.
 
 ## License
 
