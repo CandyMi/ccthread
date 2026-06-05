@@ -25,6 +25,23 @@ Both libraries share the same design:
 | macOS | POSIX `pthread` | Grand Central Dispatch `dispatch_semaphore` |
 | Linux / BSD | POSIX `pthread` | `pthread_mutex` + `pthread_cond` |
 
+### Thread safety
+
+All three backends are safe for concurrent `wait` / `trywait` / `timedwait`
+/ `post` calls from any number of threads.
+
+| Backend | ccsem mechanism | `wait` / `post` safe |
+|---------|----------------|----------------------|
+| Windows | Kernel object — NT scheduler serialises `WaitForSingleObject` / `ReleaseSemaphore` | ✅ |
+| macOS | GCD `dispatch_semaphore` — internally uses OSAtomic lock-free decrement | ✅ |
+| Linux / BSD | `pthread_mutex` + `pthread_cond` — all state changes under the mutex; `while` loop guards against spurious wakeups | ✅ |
+
+> ⚠️ `destroy` must never be called while threads are waiting on the
+> semaphore.  This is a universal constraint across `sem_destroy`,
+> `CloseHandle`, and `dispatch_release`.  Similarly, `ccthread_destroy`
+> must not be called on a running joinable thread — a joined or detached
+> handle is auto-destroyed.
+
 ## Build
 
 ```sh
@@ -99,8 +116,6 @@ cmake -S . -B build && cmake --build build
 
 - **[API.md](API.md)** — complete API reference (function tables, macros, ownership rules, thread safety)
 - **[DESIGN.md](DESIGN.md)** — why mutex+condvar instead of `sem_t` on Linux, plus performance analysis
-- **[AGENTS.md](AGENTS.md)** — naming conventions, platform recipe, how to extend, gotchas
-
 ## License
 
 MIT — see [LICENSE](LICENSE).

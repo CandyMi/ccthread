@@ -15,7 +15,7 @@ macOS breaks this assumption.
 ### Decision tree
 
 ```
-                  POSIX semaphore selection
+              POSIX semaphore selection
                          │
               ┌──────────┼──────────┐
               ↓          ↓          ↓
@@ -81,13 +81,13 @@ One atomic op ≈ 10–20 ns. Fast-path overhead of mutex+condvar: 20–60 ns.
                         timeline →
     ┌─────────────────────────────────────────────┐
     │                                             │
-    │  fast-path gap: ~50ns  ▏                     │
+    │  fast-path gap: ~50ns  ▏                    │
     │                                             │
     │  slow path:                                 │
-    │    context switch    ──────────────── 2–20μs │
-    │    scheduler latency ──────────────── 5–50μs │
+    │    context switch    ─────────────── 2–20μs │
+    │    scheduler latency ─────────────── 5–50μs │
     │                                             │
-    │  sem_t vs mutex+condvar on the slow path     │
+    │  sem_t vs mutex+condvar on the slow path    │
     │  both hit the same futex; gap ≈ 0%          │
     └─────────────────────────────────────────────┘
 ```
@@ -117,12 +117,3 @@ One atomic op ≈ 10–20 ns. Fast-path overhead of mutex+condvar: 20–60 ns.
 
 ---
 
-## 3. Thread safety across backends
-
-| Backend | Mechanism | `wait`/`post` safe |
-|---------|-----------|-------------------|
-| Windows | Kernel object — NT scheduler serialises `WaitForSingleObject` / `ReleaseSemaphore` | ✅ |
-| macOS | GCD `dispatch_semaphore` — internally uses OSAtomic lock-free decrement | ✅ |
-| Linux / BSD | `pthread_mutex` + `pthread_cond` — all state under mutex; `while` loop guards spurious wakeups | ✅ |
-
-> ⚠️ `destroy` must never be called while threads are waiting — this is a universal constraint across POSIX `sem_destroy`, Win32 `CloseHandle`, and GCD `dispatch_release`.
