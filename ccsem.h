@@ -1,15 +1,19 @@
-/*
- * ccsem — Cross-platform C/C++ semaphore library
+/**
+ * @file        ccsem.h
+ * @brief       Cross-platform C/C++ counting semaphore library
  *
- * Usage:
- *   #include "ccsem.h"
+ * Single-header API for counting semaphores with blocking, non-blocking,
+ * and timed wait operations.  Zero external dependencies.
  *
- *   ccsem_t* sem = ccsem_create(0);   // start locked
- *   // ... in thread A:
- *   ccsem_wait(sem);                  // blocks until someone posts
- *   // ... in thread B:
- *   ccsem_post(sem);                  // wakes thread A
- *   ccsem_destroy(sem);
+ * @par Backends
+ * | Platform        | Implementation |
+ * |-----------------|----------------|
+ * | Windows          | Win32 `CreateSemaphore` |
+ * | macOS            | GCD `dispatch_semaphore` |
+ * | Linux / BSD      | `pthread_mutex` + `pthread_cond` with `CLOCK_MONOTONIC` |
+ *
+ * @see API.md  — complete function reference
+ * @see DESIGN.md  — backend selection rationale and performance analysis
  */
 
 #ifndef CCSEM_H
@@ -23,12 +27,12 @@ extern "C" {
 /*  Platform detection                                                 */
 /* ------------------------------------------------------------------ */
 #if defined(_WIN32) || defined(_WIN64)
-  #define CCSEM_PLATFORM_WINDOWS 1
+  #define CCSEM_PLATFORM_WINDOWS 1   /**< Windows (MSVC / MinGW) */
 #else
-  #define CCSEM_PLATFORM_POSIX   1
+  #define CCSEM_PLATFORM_POSIX   1   /**< POSIX (Linux / macOS / BSD) */
 #endif
 
-/* ---- platform headers (needed for struct fields) ---- */
+/* ---- platform headers (required for struct fields) ---- */
 
 #ifdef CCSEM_PLATFORM_WINDOWS
   #ifndef _WIN32_WINNT
@@ -50,14 +54,14 @@ extern "C" {
 
 #if defined(_WIN32) || defined(_WIN64)
   #ifdef CCSEM_BUILD_DLL
-    #define CCSEM_API __declspec(dllexport)
+    #define CCSEM_API __declspec(dllexport)      /**< Export from DLL */
   #elif defined(CCSEM_USE_DLL)
-    #define CCSEM_API __declspec(dllimport)
+    #define CCSEM_API __declspec(dllimport)       /**< Import from DLL */
   #else
-    #define CCSEM_API
+    #define CCSEM_API                             /**< Static link */
   #endif
 #elif defined(__GNUC__) && __GNUC__ >= 4
-  #define CCSEM_API __attribute__((visibility("default")))
+  #define CCSEM_API __attribute__((visibility("default")))   /**< Shared lib export */
 #else
   #define CCSEM_API
 #endif
@@ -66,90 +70,165 @@ extern "C" {
 /*  Macros                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Return codes */
+/** @brief Semaphore acquired successfully. */
 #define CCSEM_SUCCESS       0
+
+/** @brief Operation failed (invalid argument, OS error, etc.). */
 #define CCSEM_ERROR        (-1)
-#define CCSEM_TIMEOUT      (-2)    /* trywait would block / timedwait expired */
+
+/**
+ * @brief Non-blocking wait would have blocked, or timed wait expired.
+ *
+ * Returned by ccsem_trywait() when count == 0, and by ccsem_timedwait()
+ * when the deadline elapses before the semaphore is signalled.
+ */
+#define CCSEM_TIMEOUT      (-2)
 
 /* ------------------------------------------------------------------ */
-/*  Types                                                              */
+/*  @defgroup ccsem_types  Types                                       */
+/*  @{                                                                 */
 /* ------------------------------------------------------------------ */
 
 /**
- * Semaphore handle — heap-allocated by ccsem_create().
+ * @brief Semaphore handle.
+ *
+ * Heap-allocated by ccsem_create(); must be freed with ccsem_destroy().
+ * Fields are readable but must only be modified through the API.
  */
 typedef struct ccsem_impl {
 #ifdef CCSEM_PLATFORM_WINDOWS
-    HANDLE                handle;   /* Win32 semaphore handle */
+    HANDLE                handle;   /**< Win32 semaphore kernel object */
 #elif defined(__APPLE__)
-    dispatch_semaphore_t  sem;      /* GCD semaphore */
+    dispatch_semaphore_t  sem;      /**< GCD semaphore (macOS / iOS) */
 #else
-    pthread_mutex_t       mutex;    /* protects `count` and `cond` */
-    pthread_cond_t        cond;     /* wait / signal condition */
-    unsigned int          count;    /* current semaphore count */
+    pthread_mutex_t       mutex;    /**< Guards count and cond */
+    pthread_cond_t        cond;     /**< Wait / signal condition (CLOCK_MONOTONIC) */
+    unsigned int          count;    /**< Current semaphore value */
 #endif
 } ccsem_t;
 
+/** @} */ /* end of ccsem_types */
+
 /* ------------------------------------------------------------------ */
-/*  Semaphore API                                                      */
+/*  @defgroup ccsem_blocking  Blocking operations                      */
+/*  @{                                                                 */
 /* ------------------------------------------------------------------ */
 
 /**
- * Create a semaphore with an initial count.
+ * @brief Create a semaphore with an initial count.
  *
- * @param initial_count  starting value (0 = locked, N = allow N waiters)
- * @return               new semaphore handle, or NULL on failure
+ * @param[in]  initial_count  starting value — 0 means locked,
+ *                            N means up to N waiters can pass without blocking
+ * @return                    new semaphore handle on success
+ * @retval NULL                memory allocation failed
  *
- * The handle MUST be released with ccsem_destroy().
+ * @note The returned handle must be released with ccsem_destroy().
  */
 CCSEM_API ccsem_t* ccsem_create(unsigned int initial_count);
 
 /**
- * Wait (P / down / decrement) on the semaphore.
+ * @brief Wait on the semaphore (P / decrement / "down").
  *
- * If the count is > 0, decrements and returns immediately.
- * If the count is 0, blocks until another thread calls ccsem_post().
+ * If the count is > 0 it is atomically decremented and the call
+ * returns immediately.  If the count is 0 the calling thread
+ * blocks until another thread calls ccsem_post().
  *
- * @param sem  semaphore handle (must not be NULL)
- * @return     CCSEM_SUCCESS, or CCSEM_ERROR on invalid handle
+ * @param[in]  sem  semaphore handle (must not be NULL)
+ * @return          CCSEM_SUCCESS once the semaphore is acquired
+ * @retval CCSEM_ERROR  @p sem is NULL
+ *
+ * @note This function blocks indefinitely — there is no timeout.
+ *       Use ccsem_trywait() or ccsem_timedwait() for bounded waits.
  */
 CCSEM_API int ccsem_wait(ccsem_t* sem);
 
 /**
- * Try to decrement the semaphore without blocking.
+ * @brief Signal the semaphore (V / increment / "up" / post).
  *
- * @return CCSEM_SUCCESS if acquired, CCSEM_TIMEOUT if count is 0,
- *         CCSEM_ERROR on invalid handle
+ * Atomically increments the count.  If any threads are blocked in
+ * ccsem_wait() / ccsem_trywait() / ccsem_timedwait(), exactly one
+ * is woken.  If no threads are waiting, the count is simply incremented
+ * so the next waiter can pass.
+ *
+ * @param[in]  sem  semaphore handle (must not be NULL)
+ * @return          CCSEM_SUCCESS
+ * @retval CCSEM_ERROR  @p sem is NULL, or the platform call failed
+ */
+CCSEM_API int ccsem_post(ccsem_t* sem);
+
+/** @} */ /* end of ccsem_blocking */
+
+/* ------------------------------------------------------------------ */
+/*  @defgroup ccsem_nonblocking  Non-blocking and timed operations     */
+/*  @{                                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Try to decrement the semaphore without blocking.
+ *
+ * If the count is > 0 it is atomically decremented and the call
+ * returns CCSEM_SUCCESS.  If the count is 0 the call returns
+ * CCSEM_TIMEOUT immediately — the caller is **not** put to sleep.
+ *
+ * @param[in]  sem  semaphore handle (must not be NULL)
+ * @return          CCSEM_SUCCESS if acquired
+ * @retval CCSEM_TIMEOUT  count was 0 (would have blocked)
+ * @retval CCSEM_ERROR    @p sem is NULL
+ *
+ * @note Equivalent to `ccsem_timedwait(sem, 0)`.
+ * @see ccsem_timedwait()
  */
 CCSEM_API int ccsem_trywait(ccsem_t* sem);
 
 /**
- * Wait with a timeout.
+ * @brief Wait on the semaphore with a timeout.
  *
- * @param timeout_ms  max milliseconds to wait; 0 behaves like trywait
- * @return  CCSEM_SUCCESS if acquired, CCSEM_TIMEOUT on expiry,
- *          CCSEM_ERROR on invalid handle
+ * If the count is > 0 the call returns CCSEM_SUCCESS immediately.
+ * If the count is 0 the calling thread blocks for at most
+ * @p timeout_ms milliseconds.  If the semaphore is signalled within
+ * that window the call returns CCSEM_SUCCESS; otherwise it returns
+ * CCSEM_TIMEOUT.
+ *
+ * @param[in]  sem         semaphore handle (must not be NULL)
+ * @param[in]  timeout_ms  maximum wait time in milliseconds;
+ *                         0 is equivalent to ccsem_trywait()
+ * @return                 CCSEM_SUCCESS if acquired within the deadline
+ * @retval CCSEM_TIMEOUT   the deadline expired without a signal
+ * @retval CCSEM_ERROR     @p sem is NULL
+ *
+ * @par Timer precision
+ * The library adds ~100 ns of overhead.  Remaining jitter comes from
+ * the OS timer subsystem: ~50 µs–10 ms depending on platform and
+ * system load.  The deadline is measured against `CLOCK_MONOTONIC`
+ * (immune to wall-clock adjustments).  See DESIGN.md §2–3 for details.
+ *
+ * @note For sub-millisecond deadlines, use a spinning ccsem_trywait()
+ *       loop to avoid the kernel timer path entirely.
+ * @see ccsem_trywait()
+ * @see ccsem_wait()
  */
 CCSEM_API int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms);
 
-/**
- * Signal (V / up / increment / post) the semaphore.
- *
- * Increments the count and wakes exactly one blocked waiter.
- * If no thread is waiting, the count is incremented for the next waiter.
- *
- * @param sem  semaphore handle (must not be NULL)
- * @return     CCSEM_SUCCESS, or CCSEM_ERROR on invalid handle
- */
-CCSEM_API int ccsem_post(ccsem_t* sem);
+/** @} */ /* end of ccsem_nonblocking */
+
+/* ------------------------------------------------------------------ */
+/*  @defgroup ccsem_cleanup  Cleanup                                   */
+/*  @{                                                                 */
+/* ------------------------------------------------------------------ */
 
 /**
- * Destroy a semaphore and free its resources.
+ * @brief Destroy a semaphore and free its resources.
  *
- * Safe to call with NULL (no-op).
- * Do NOT destroy a semaphore while threads are waiting on it.
+ * @param[in]  sem  semaphore handle to free; NULL is a safe no-op
+ *
+ * @warning Do NOT call this while any thread is blocked on the
+ *          semaphore.  This is a universal constraint across all
+ *          semaphore implementations (POSIX `sem_destroy`, Win32
+ *          `CloseHandle`, GCD `dispatch_release`).
  */
 CCSEM_API void ccsem_destroy(ccsem_t* sem);
+
+/** @} */ /* end of ccsem_cleanup */
 
 #ifdef __cplusplus
 }
