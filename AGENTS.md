@@ -12,6 +12,15 @@ with zero external dependencies:
 
 Every API and macro is namespaced with the library prefix (`ccthread_*` / `CCTHREAD_*`, `ccsem_*` / `CCSEM_*`).  Both headers have `extern "C"` guards — drop into C or C++.
 
+### Supporting documentation
+
+| File | Purpose |
+|------|--------|
+| `README.md` | Entry point — at-a-glance, platforms, build, examples, thread safety |
+| `API.md` | Complete API reference (function tables, macros, ownership rules) |
+| `DESIGN.md` | POSIX backend selection rationale, fast/slow path performance analysis, timer precision |
+| `AGENTS.md` | This file — conventions, recipes, gotchas for contributors |
+
 ---
 
 ## Design principles
@@ -104,7 +113,7 @@ int ccsem_wait(ccsem_t* sem) {
    # add example targets as needed
    ```
 
-4. Update `README.md` — follow the existing dual-library structure:
+4. Update `README.md` and `API.md` — follow the existing dual-library structure:
    - Add a `# ccmutex` H1 section
    - Add API reference table
    - Add example to the Examples section
@@ -146,6 +155,8 @@ int ccthread_new_fn(ccthread_t* thread, …) {
 - Use `{ … }` scope blocks inside each `#ifdef` branch to keep variables local.
 - NULL-pointer parameters MUST return the library's `_ERROR` code.
 - Document platform-specific behavior differences in the header's Doxygen comment.
+- Update `API.md` with the new function in the correct subsection.
+- If the addition affects a design decision, update `DESIGN.md` as well.
 
 ---
 
@@ -184,6 +195,13 @@ int ccthread_new_fn(ccthread_t* thread, …) {
 - macOS: can only name the CALLING thread (`pthread_setname_np` takes no thread argument).
 - Windows 10+: fully symmetric (can name any thread), but the API is dynamically loaded so older Windows silently returns `CCTHREAD_ERROR`.
 - The API accepts `thread=NULL` to mean "current thread" for convenience.
+
+### `ccsem` POSIX backend: `CLOCK_MONOTONIC` is mandatory
+
+The condvar MUST be initialised with `pthread_condattr_setclock(&attr, CLOCK_MONOTONIC)` and all timing calls MUST use `clock_gettime(CLOCK_MONOTONIC, …)`.  Using `CLOCK_REALTIME` would make `timedwait` vulnerable to NTP adjustments and manual clock changes (a 12-second backward leap turns a 5-second timeout into 17 seconds).  The monotonic clock also guarantees the absolute deadline stays valid across spurious-wakeup re-entries — no elapsed-time "reset" can occur because the clock never jumps backward.
+
+### Timer precision is OS-limited, not code-limited
+The library overhead for `timedwait` is ~100 ns (two mutex ops + one `clock_gettime`).  All remaining jitter comes from the OS: timer slack (~50 µs on Linux, configurable via `prctl(PR_SET_TIMERSLACK, 1)`), timer coalescing (~1–10 ms on macOS, not configurable), and scheduler wake-up latency (~10–500 µs).  For sub-millisecond deadlines use a spinning `trywait` loop.  See `DESIGN.md` §3 for empirical measurements.
 
 ### Detached-thread cleanup uses a double-check
 `ccthread_detach` and the thread wrapper both check `finished` / `detached` flags after setting their own flag.  This guarantees exactly one side frees the struct, even under scheduling races.  On weakly-ordered architectures a leak is theoretically possible; in practice the window is negligible.
