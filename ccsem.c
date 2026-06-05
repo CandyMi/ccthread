@@ -68,7 +68,13 @@ ccsem_t* ccsem_create(unsigned int initial_count)
             return NULL;
         }
 
-        rc = pthread_cond_init(&sem->cond, NULL);
+        {
+            pthread_condattr_t attr;
+            pthread_condattr_init(&attr);
+            pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+            rc = pthread_cond_init(&sem->cond, &attr);
+            pthread_condattr_destroy(&attr);
+        }
         if (rc != 0) {
             pthread_mutex_destroy(&sem->mutex);
             free(sem);
@@ -205,7 +211,7 @@ int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms)
         /* Compute absolute deadline */
         {
             struct timespec ts;
-            clock_gettime(CLOCK_REALTIME, &ts);
+            clock_gettime(CLOCK_MONOTONIC, &ts);
             ts.tv_sec  += (time_t)(timeout_ms / 1000);
             ts.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
             if (ts.tv_nsec >= 1000000000L) {

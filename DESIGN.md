@@ -111,6 +111,13 @@ One atomic op ≈ 10–20 ns. Fast-path overhead of mutex+condvar: 20–60 ns.
 
 **Rejected because**: `sem_timedwait` is hardwired to `CLOCK_REALTIME` — an NTP step or leap second breaks the timeout contract. `pthread_cond_timedwait` can use `CLOCK_MONOTONIC`. Splitting Linux and BSD means maintaining timeout-correctness guarantees across two paths. The marginal performance win (~50 ns fast-path) is not worth the dual maintenance burden.
 
+> **Applied fix** (see `ccsem.c`): the POSIX condvar is now initialised with
+> `pthread_condattr_setclock(&attr, CLOCK_MONOTONIC)`, and `ccsem_timedwait`
+> calls `clock_gettime(CLOCK_MONOTONIC, …)`.  The absolute deadline is computed
+> once before the `while` loop; each spurious-wakeup re-entry reuses the same
+> monotonic deadline, so elapsed time is never "reset".  Timed waits are now
+> immune to wall-clock jumps and spurious-wakeup drift.
+
 ### One-line summary
 
 > mutex+condvar is ~50 ns slower on the uncontended fast path, but any scenario involving thread scheduling drowns that gap in microsecond-scale context-switch noise. It was chosen because **one code path = one correctness story = one place to fix bugs**.
