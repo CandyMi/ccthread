@@ -189,6 +189,21 @@ ccsem_destroy(sem);
 | `CCSEM_ERROR` | `-1` | Invalid argument (e.g. NULL) |
 | `CCSEM_API` | platform export | Define `CCSEM_BUILD_DLL` or `CCSEM_USE_DLL` |
 
+### Thread safety
+
+All three backends are safe for concurrent `wait` / `trywait` / `timedwait`
+/ `post` calls from any number of threads.
+
+| Backend | Mechanism | `wait` / `post` safe |
+|---------|-----------|---------------------|
+| Windows | Kernel object — `WaitForSingleObject` / `ReleaseSemaphore` serialised by the NT scheduler | ✅ |
+| macOS | GCD `dispatch_semaphore` — uses OSAtomic lock-free decrement internally | ✅ |
+| Linux / BSD | `pthread_mutex` + `pthread_cond` — all state changes under the mutex; `while` loop guards against spurious wakeups | ✅ |
+
+> ⚠️ `ccsem_destroy` is **not** safe while threads are waiting on the semaphore.
+> This is a universal constraint across all semaphore APIs (POSIX `sem_destroy`,
+> Win32 `CloseHandle`, GCD `dispatch_release`).
+
 ---
 
 # Examples
