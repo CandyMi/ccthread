@@ -32,6 +32,23 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- compiler-agnostic atomic store / load (acquire-release) ---- */
+#if defined(__GNUC__) || defined(__clang__)
+  #define CCTHREAD_ATOMIC_STORE(p, v) \
+      __atomic_store_n((p), (v), __ATOMIC_RELEASE)
+  #define CCTHREAD_ATOMIC_LOAD(p) \
+      __atomic_load_n((p), __ATOMIC_ACQUIRE)
+#elif defined(_MSC_VER)
+  #define CCTHREAD_ATOMIC_STORE(p, v) \
+      InterlockedExchange((LONG volatile*)(p), (LONG)(v))
+  #define CCTHREAD_ATOMIC_LOAD(p) \
+      InterlockedCompareExchange((LONG volatile*)(p), 0, 0)
+#else
+  /* fallback: volatile — correct on x86, tiny leak window on ARM */
+  #define CCTHREAD_ATOMIC_STORE(p, v)  (*(volatile int*)(p) = (int)(v))
+  #define CCTHREAD_ATOMIC_LOAD(p)      (*(volatile int*)(p))
+#endif
+
 /* struct ccthread_impl is now defined in ccthread.h */
 
 /* ================================================================== */
@@ -53,9 +70,9 @@ static void* ccthread_wrapper(void* arg)
 
     /* Store result, mark finished, and self-destruct if detached */
     thread->result   = ret;
-    thread->finished = 1;
+    CCTHREAD_ATOMIC_STORE(&thread->finished, 1);
 
-    if (thread->detached) {
+    if (CCTHREAD_ATOMIC_LOAD(&thread->detached)) {
         /* Detached — we are responsible for cleanup.
          *
          * ccthread_detach() also checks `finished` after setting
@@ -98,9 +115,9 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg)
 
     thread->func     = func;
     thread->arg      = arg;
-    thread->detached = 0;
-    thread->joined   = 0;
-    thread->finished = 0;
+    CCTHREAD_ATOMIC_STORE(&thread->detached, 0);
+    CCTHREAD_ATOMIC_STORE(&thread->joined,   0);
+    CCTHREAD_ATOMIC_STORE(&thread->finished, 0);
     thread->is_self  = 0;
     thread->result   = NULL;
 
@@ -142,7 +159,8 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg)
 
 int ccthread_join(ccthread_t* thread, void** result)
 {
-    if (!thread || thread->detached || thread->joined || thread->is_self) {
+    if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
+        CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
     }
 
@@ -172,7 +190,7 @@ int ccthread_join(ccthread_t* thread, void** result)
     }
 #endif
 
-    thread->joined = 1;
+    CCTHREAD_ATOMIC_STORE(&thread->joined, 1);
     free(thread);
     return CCTHREAD_SUCCESS;
 }
@@ -183,7 +201,8 @@ int ccthread_join(ccthread_t* thread, void** result)
 
 int ccthread_detach(ccthread_t* thread)
 {
-    if (!thread || thread->detached || thread->joined || thread->is_self) {
+    if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
+        CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
     }
 
@@ -201,11 +220,11 @@ int ccthread_detach(ccthread_t* thread)
     }
 #endif
 
-    thread->detached = 1;
+    CCTHREAD_ATOMIC_STORE(&thread->detached, 1);
 
     /* If the wrapper has already exited, it missed the `detached` flag
      * and didn't free — we must free now.  Otherwise the wrapper will. */
-    if (thread->finished) {
+    if (CCTHREAD_ATOMIC_LOAD(&thread->finished)) {
         free(thread);
     }
 
@@ -289,9 +308,9 @@ ccthread_t* ccthread_self(void)
     }
 
     self->is_self  = 1;
-    self->detached = 1;   /* can't join a self handle */
-    self->joined   = 1;
-    self->finished = 1;
+    CCTHREAD_ATOMIC_STORE(&self->detached, 1);
+    CCTHREAD_ATOMIC_STORE(&self->joined,   1);
+    CCTHREAD_ATOMIC_STORE(&self->finished, 1);
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     {

@@ -113,9 +113,9 @@ typedef struct ccthread_impl {
     void*            arg;        /**< User argument forwarded to func */
     void*            result;     /**< Return value captured on exit */
 
-    volatile int     detached;   /**< Non-zero after ccthread_detach() */
-    volatile int     joined;     /**< Non-zero after ccthread_join() succeeds */
-    volatile int     finished;   /**< Non-zero when the thread wrapper has exited */
+    int              detached;   /**< Non-zero after ccthread_detach() — use atomic access */
+    int              joined;     /**< Non-zero after ccthread_join() succeeds — use atomic access */
+    int              finished;   /**< Non-zero when the thread wrapper has exited — use atomic access */
 
     int              is_self;    /**< Non-zero if created by ccthread_self();
                                       join / detach are rejected for these */

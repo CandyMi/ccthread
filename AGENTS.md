@@ -203,8 +203,23 @@ The condvar MUST be initialised with `pthread_condattr_setclock(&attr, CLOCK_MON
 ### Timer precision is OS-limited, not code-limited
 The library overhead for `timedwait` is ~100 ns (two mutex ops + one `clock_gettime`).  All remaining jitter comes from the OS: timer slack (~50 µs on Linux, configurable via `prctl(PR_SET_TIMERSLACK, 1)`), timer coalescing (~1–10 ms on macOS, not configurable), and scheduler wake-up latency (~10–500 µs).  For sub-millisecond deadlines use a spinning `trywait` loop.  See `DESIGN.md` §3 for empirical measurements.
 
-### Detached-thread cleanup uses a double-check
-`ccthread_detach` and the thread wrapper both check `finished` / `detached` flags after setting their own flag.  This guarantees exactly one side frees the struct, even under scheduling races.  On weakly-ordered architectures a leak is theoretically possible; in practice the window is negligible.
+### Detached-thread cleanup uses acquire-release atomics
+`ccthread_detach` and the thread wrapper both set & check `finished` / `detached`
+flags.  The flags are accessed via `CCTHREAD_ATOMIC_STORE` (release) and
+`CCTHREAD_ATOMIC_LOAD` (acquire), defined in `ccthread.c` as a compiler-agnostic
+wrapper:
+
+| Compiler | Implementation | Platform |
+|----------|---------------|----------|
+| GCC / Clang | `__atomic_store_n(p, v, __ATOMIC_RELEASE)` / `__atomic_load_n(p, __ATOMIC_ACQUIRE)` | All |
+| MSVC | `InterlockedExchange` / `InterlockedCompareExchange` (full barrier — correct, slightly heavier) | Windows |
+| Fallback | `volatile` store / load | TinyCC etc. |
+
+The acquire-release pairs form a happens-before chain across the two threads,
+closing the theoretical leak window on weakly-ordered CPUs (ARM, PowerPC).
+On x86 the atomic macros emit zero extra instructions — x86 loads/stores are
+already acquire/release in hardware.  The struct fields are plain `int` (no
+`volatile` qualifier) because all access goes through the macros.
 
 ### `ccthread_self()` returns an owned handle
 Unlike `pthread_self()` which returns a value, `ccthread_self()` heap-allocates a new `ccthread_t` that MUST be `destroy()`'d.  The handle is marked `is_self=1` so `join`/`detach` will reject it.
