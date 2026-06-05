@@ -367,7 +367,27 @@ int ccthread_set_name(ccthread_t* thread, const char* name)
                     GetProcAddress(mod, "SetThreadDescription");
             }
             if (!pSetThreadDesc) {
+                /* SetThreadDescription unavailable — pre-Win10.
+                 * Fall back to the MSVC debugger exception convention
+                 * (0x406D1388).  Visual Studio and WinDbg recognise this
+                 * as a thread-name notification and silently consume it.
+                 * Only compiled under _MSC_VER (SEH __try/__except). */
+#ifdef _MSC_VER
+                {
+                    ULONG_PTR args[4];
+                    args[0] = 0x1000;                    /* dwType */
+                    args[1] = (ULONG_PTR)(LPCSTR)buf;    /* szName */
+                    args[2] = (thread ? thread->tid
+                                      : GetCurrentThreadId()); /* dwThreadID */
+                    args[3] = 0;                         /* dwFlags */
+                    __try {
+                        RaiseException(0x406D1388, 0, 4, args);
+                    } __except(EXCEPTION_EXECUTE_HANDLER) {}
+                }
+                return CCTHREAD_SUCCESS;
+#else
                 return CCTHREAD_ERROR;
+#endif
             }
         }
 
