@@ -124,3 +124,54 @@ One atomic op ≈ 10–20 ns. Fast-path overhead of mutex+condvar: 20–60 ns.
 
 ---
 
+## 3. Timer precision
+
+### Where the jitter comes from
+
+When `ccsem_timedwait(sem, 5ms)` overruns, the library code is not the cause:
+
+```
+actual elapsed = requested timeout
+               + pthread_mutex_lock/unlock overhead  (~100 ns, negligible)
+               + OS timer granularity                (50 μs – 10 ms, main source)
+               + scheduler latency                   (10 – 500 μs, load-dependent)
+```
+
+The two dominating factors are **timer slack** (Linux) and **timer coalescing** (macOS) — the kernel deliberately delays timer expiry to batch wake-ups and save power.
+
+### Clock resolution vs. timer precision
+
+| Layer | Linux (typical) | macOS (measured) |
+|-------|----------------|------------------|
+| `clock_gettime(CLOCK_MONOTONIC)` resolution | 1 ns (vDSO) | 1 μs |
+| Timer slack / coalescing | `PR_GET_TIMERSLACK` → default **50 μs**; `prctl(SET_TIMERSLACK, 1)` tightens to ~50 ns | Not queryable; Mach timer coalescing → **1–10 ms** granularity |
+| Lib code overhead (`mutex_lock` + `gettime` + `mutex_unlock`) | ~100 ns | ~100 ns |
+
+### Empirical measurement
+
+`ccsem_timedwait(sem, 5ms)` on a locked semaphore, 50 rounds on macOS:
+
+```
+target =   5000 μs
+min    =   5028 μs  (+28 μs)      ← best case:  one coalescing tick
+max    =   6390 μs  (+1390 μs)    ← worst: tick + scheduler delay
+avg    =   5785 μs  (+785 μs)     ← typical macOS timer coalescing penalty
+```
+
+On Linux the same test would expect ~+50–200 μs deviation — roughly an order of
+magnitude tighter — because the default timer slack is 50 μs and the scheduler
+tick is typically 250–1000 Hz (1–4 ms).  Linux users who need tighter bounds
+can call `prctl(PR_SET_TIMERSLACK, 1)` in their thread before waiting.
+
+### Why this is acceptable
+
+- `ccsem_timedwait` is a **blocking** operation — its caller expects to sleep on the order of milliseconds.  A ~1 ms jitter on a 100 ms timeout is < 1% error, far below application-level timing tolerances.
+- For sub-millisecond deadlines, a spinning `ccsem_trywait` loop (busy-wait) avoids the kernel timer path entirely.
+- For hard real-time constraints (`PREEMPT_RT`, DPDK-style polling), the whole pthread model is the wrong tool — `ccsem` targets general-purpose systems.
+
+### One-line summary
+
+> The library adds ~100 ns of overhead; the remaining jitter is OS timer granularity (50 μs – 10 ms depending on platform and configuration).  For general-purpose use this is well within tolerance.
+
+---
+
