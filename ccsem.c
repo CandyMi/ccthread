@@ -30,8 +30,7 @@
 /*  ccsem_create                                                        */
 /* ================================================================== */
 
-ccsem_t* ccsem_create(unsigned int initial_count)
-{
+ccsem_t* ccsem_create(unsigned int initial_count) {
     ccsem_t* sem;
 
     sem = (ccsem_t*)calloc(1, sizeof(ccsem_t));
@@ -92,8 +91,7 @@ ccsem_t* ccsem_create(unsigned int initial_count)
 /*  ccsem_wait                                                          */
 /* ================================================================== */
 
-int ccsem_wait(ccsem_t* sem)
-{
+int ccsem_wait(ccsem_t* sem) {
     if (!sem) {
         return CCSEM_ERROR;
     }
@@ -135,8 +133,7 @@ int ccsem_wait(ccsem_t* sem)
 /*  ccsem_trywait                                                       */
 /* ================================================================== */
 
-int ccsem_trywait(ccsem_t* sem)
-{
+int ccsem_trywait(ccsem_t* sem) {
     if (!sem) {
         return CCSEM_ERROR;
     }
@@ -172,8 +169,7 @@ int ccsem_trywait(ccsem_t* sem)
 /*  ccsem_timedwait                                                     */
 /* ================================================================== */
 
-int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms)
-{
+int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
     if (!sem) {
         return CCSEM_ERROR;
     }
@@ -243,8 +239,7 @@ int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms)
 /*  ccsem_post                                                          */
 /* ================================================================== */
 
-int ccsem_post(ccsem_t* sem)
-{
+int ccsem_post(ccsem_t* sem) {
     if (!sem) {
         return CCSEM_ERROR;
     }
@@ -283,8 +278,7 @@ int ccsem_post(ccsem_t* sem)
 /*  ccsem_destroy                                                       */
 /* ================================================================== */
 
-void ccsem_destroy(ccsem_t* sem)
-{
+void ccsem_destroy(ccsem_t* sem) {
     if (!sem) {
         return;
     }

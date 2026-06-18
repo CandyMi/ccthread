@@ -1,8 +1,6 @@
 /*
  * ccsem_producer_consumer.c — Classic bounded-buffer with semaphores
  *
- * Demonstrates: ccsem_create, ccsem_wait, ccsem_post, ccsem_destroy.
- *
  * Pattern:
  *   empty_slots  — starts at BUFSIZE (how many slots are free)
  *   filled_slots — starts at 0          (how many items are ready)

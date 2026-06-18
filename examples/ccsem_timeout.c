@@ -1,8 +1,6 @@
 /*
  * ccsem_timeout.c — Non-blocking and timed wait patterns
  *
- * Demonstrates: ccsem_trywait, ccsem_timedwait.
- *
  * Compile (POSIX):   cc -o timeout examples/ccsem_timeout.c ccsem.c ccthread.c -lpthread
  * Compile (MSVC):    cl examples\ccsem_timeout.c ccsem.c ccthread.c
  */

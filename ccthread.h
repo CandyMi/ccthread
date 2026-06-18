@@ -5,15 +5,6 @@
  * Single-header API for thread lifecycle management with zero external
  * dependencies.  Supports Windows (Win32) and all POSIX systems (pthread).
  *
- * @par Lifecycle
- *
- * ```
- * ccthread_create() ──→ ccthread_join()   (wait + auto-destroy)
- *                   └─→ ccthread_detach() (fire-and-forget)
- *
- * ccthread_self()  ──→ ccthread_destroy() (manual destroy)
- * ```
- *
  * @see API.md  — complete function reference
  * @see DESIGN.md  — design rationale
  */

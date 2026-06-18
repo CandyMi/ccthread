@@ -56,11 +56,10 @@
 /* ================================================================== */
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
-static DWORD WINAPI ccthread_wrapper(LPVOID arg)
+static DWORD WINAPI ccthread_wrapper(LPVOID arg) {
 #else
-static void* ccthread_wrapper(void* arg)
+static void* ccthread_wrapper(void* arg) {
 #endif
-{
     ccthread_t*      thread = (ccthread_t*)arg;
     ccthread_func_t  func   = thread->func;
     void*            uarg   = thread->arg;
@@ -100,8 +99,7 @@ static void* ccthread_wrapper(void* arg)
 /*  ccthread_create                                                    */
 /* ================================================================== */
 
-ccthread_t* ccthread_create(ccthread_func_t func, void* arg)
-{
+ccthread_t* ccthread_create(ccthread_func_t func, void* arg) {
     ccthread_t* thread;
 
     if (!func) {
@@ -157,8 +155,7 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg)
 /*  ccthread_join                                                       */
 /* ================================================================== */
 
-int ccthread_join(ccthread_t* thread, void** result)
-{
+int ccthread_join(ccthread_t* thread, void** result) {
     if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
         CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
@@ -199,8 +196,7 @@ int ccthread_join(ccthread_t* thread, void** result)
 /*  ccthread_detach                                                     */
 /* ================================================================== */
 
-int ccthread_detach(ccthread_t* thread)
-{
+int ccthread_detach(ccthread_t* thread) {
     if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
         CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
@@ -235,8 +231,7 @@ int ccthread_detach(ccthread_t* thread)
 /*  ccthread_destroy                                                    */
 /* ================================================================== */
 
-void ccthread_destroy(ccthread_t* thread)
-{
+void ccthread_destroy(ccthread_t* thread) {
     if (!thread) {
         return;
     }
@@ -254,8 +249,7 @@ void ccthread_destroy(ccthread_t* thread)
 /*  ccthread_exit                                                       */
 /* ================================================================== */
 
-void ccthread_exit(void* result)
-{
+void ccthread_exit(void* result) {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     ExitThread((DWORD)(uintptr_t)result);
 #else
@@ -267,8 +261,7 @@ void ccthread_exit(void* result)
 /*  ccthread_yield                                                      */
 /* ================================================================== */
 
-void ccthread_yield(void)
-{
+void ccthread_yield(void) {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     SwitchToThread();
 #else
@@ -280,8 +273,7 @@ void ccthread_yield(void)
 /*  ccthread_sleep                                                      */
 /* ================================================================== */
 
-void ccthread_sleep(unsigned int ms)
-{
+void ccthread_sleep(unsigned int ms) {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     Sleep((DWORD)ms);
 #else
@@ -298,8 +290,7 @@ void ccthread_sleep(unsigned int ms)
 /*  ccthread_self                                                       */
 /* ================================================================== */
 
-ccthread_t* ccthread_self(void)
-{
+ccthread_t* ccthread_self(void) {
     ccthread_t* self;
 
     self = (ccthread_t*)calloc(1, sizeof(ccthread_t));
@@ -335,8 +326,7 @@ ccthread_t* ccthread_self(void)
 /*  ccthread_equal                                                      */
 /* ================================================================== */
 
-int ccthread_equal(ccthread_t* a, ccthread_t* b)
-{
+int ccthread_equal(ccthread_t* a, ccthread_t* b) {
     if (!a || !b) {
         return (a == b);   /* both NULL → considered equal */
     }
@@ -352,8 +342,7 @@ int ccthread_equal(ccthread_t* a, ccthread_t* b)
 /*  ccthread_set_name                                                   */
 /* ================================================================== */
 
-int ccthread_set_name(ccthread_t* thread, const char* name)
-{
+int ccthread_set_name(ccthread_t* thread, const char* name) {
     /* Truncate name to CCTHREAD_NAME_MAX-1 */
     char buf[CCTHREAD_NAME_MAX];
 

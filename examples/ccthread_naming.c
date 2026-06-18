@@ -1,8 +1,6 @@
 /*
  * ccthread_naming.c — Assign debug names to threads
  *
- * Demonstrates: ccthread_set_name.
- *
  * Named threads are easier to identify in debuggers (gdb, lldb, WinDbg)
  * and system tools (top -H, htop, Process Explorer, /proc).
  *

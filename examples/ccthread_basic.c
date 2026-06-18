@@ -1,9 +1,6 @@
 /*
  * ccthread_basic.c — Basic thread lifecycle
  *
- * Demonstrates: ccthread_create, ccthread_join, return values,
- *               ccthread_self, ccthread_equal, ccthread_yield.
- *
  * Compile (POSIX):   cc -o basic examples/ccthread_basic.c ccthread.c -lpthread
  * Compile (MSVC):    cl examples\ccthread_basic.c ccthread.c
  */

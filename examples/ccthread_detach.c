@@ -1,8 +1,6 @@
 /*
  * ccthread_detach.c — Fire-and-forget with detached threads
  *
- * Demonstrates: ccthread_detach, ccthread_sleep.
- *
  * A detached thread runs independently — the caller does not (and
  * cannot) join it.  The OS reclaims thread resources on exit.
  *
