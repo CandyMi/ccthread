@@ -5,17 +5,22 @@
  * POSIX     : pthreads  (pthread_create / pthread_join  / pthread_detach)
  */
 
-#include "ccthread.h"
+/* ---- platform adjustments (must precede any include that may pull in <windows.h>) ---- */
 
-/* ---- platform includes ---- */
-
-#ifdef CCTHREAD_PLATFORM_WINDOWS
+#if defined(_WIN32) || defined(_WIN64)
   #ifndef _WIN32_WINNT
     #define _WIN32_WINNT 0x0600   /* target Vista+ */
   #endif
   #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
   #endif
+#endif
+
+#include "ccthread.h"
+
+/* ---- platform includes ---- */
+
+#ifdef CCTHREAD_PLATFORM_WINDOWS
   #include <windows.h>
   #include <process.h>            /* _beginthreadex (optional — we use CreateThread) */
 #else  /* CCTHREAD_PLATFORM_POSIX */
