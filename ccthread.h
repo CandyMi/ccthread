@@ -25,19 +25,8 @@ extern "C" {
   #define CCTHREAD_PLATFORM_POSIX   1   /**< POSIX (Linux / macOS / BSD) */
 #endif
 
-/* ---- platform headers (required for struct fields) ---- */
-
-#ifdef CCTHREAD_PLATFORM_WINDOWS
-  #ifndef _WIN32_WINNT
-    #define _WIN32_WINNT 0x0600
-  #endif
-  #ifndef WIN32_LEAN_AND_MEAN
-    #define WIN32_LEAN_AND_MEAN
-  #endif
-  #include <windows.h>
-#else
-  #include <pthread.h>
-#endif
+/* ---- struct is opaque (definition lives in ccthread.c) ---- */
+/* ---- platform headers are internal to the implementation ---- */
 
 /* ------------------------------------------------------------------ */
 /*  Symbol export / import (MSVC / GCC visibility)                     */
@@ -89,28 +78,13 @@ typedef void* (*ccthread_func_t)(void* arg);
 /**
  * @brief Thread handle.
  *
- * Heap-allocated by ccthread_create() or ccthread_self().
- * Fields are readable but must only be modified through the API.
+ * Opaque struct — heap-allocated by ccthread_create() or ccthread_self().
+ * All access is through the public API functions.
+ *
+ * @note The full struct definition is in ccthread.c to avoid exposing
+ *       platform-specific headers (Win32 / pthread) to the consumer.
  */
-typedef struct ccthread_impl {
-#ifdef CCTHREAD_PLATFORM_WINDOWS
-    HANDLE           handle;     /**< Win32 thread handle; NULL when closed */
-    DWORD            tid;        /**< Thread ID for comparison */
-#else
-    pthread_t        handle;     /**< POSIX thread identifier */
-#endif
-
-    ccthread_func_t  func;       /**< User-supplied entry point */
-    void*            arg;        /**< User argument forwarded to func */
-    void*            result;     /**< Return value captured on exit */
-
-    int              detached;   /**< Non-zero after ccthread_detach() — use atomic access */
-    int              joined;     /**< Non-zero after ccthread_join() succeeds — use atomic access */
-    int              finished;   /**< Non-zero when the thread wrapper has exited — use atomic access */
-
-    int              is_self;    /**< Non-zero if created by ccthread_self();
-                                      join / detach are rejected for these */
-} ccthread_t;
+typedef struct ccthread_impl ccthread_t;
 
 /** @} */ /* end of ccthread_types */
 

@@ -25,7 +25,7 @@ Every API and macro is namespaced with the library prefix (`ccthread_*` / `CCTHR
 
 ## Design principles
 
-1. **Single .h + single .c per library.**  No internal headers, no subdirectories.  The struct definition lives in the **header** (fields are visible but documented as "modify through API").
+1. **Single .h + single .c per library.**  No internal headers, no subdirectories.  The struct definition lives in the **`.c` file** (opaque to consumers) — platform-specific headers are hidden from API consumers.
 
 2. **Heap-allocated `typedef struct {…} name_t`.**  Handles are explicit pointers: `ccthread_t*`, `ccsem_t*`.  Allocated with `calloc` (zero-init), returned to the caller.  No stack allocation — the struct layout differs per platform.
 
@@ -183,6 +183,21 @@ int ccthread_new_fn(ccthread_t* thread, …) {
 ---
 
 ## Gotchas & non-obvious decisions
+
+### Struct is opaque — no platform headers in public headers
+The `ccthread_impl` and `ccsem_impl` struct definitions live in their respective `.c`
+files, not in the headers.  The headers contain only `typedef struct x_impl x_t;`
+forward declarations.
+
+This is intentional: `<windows.h>`, `<pthread.h>`, and `<dispatch/dispatch.h>`
+are **internal** to the implementation.  Consumers of the header file never see
+platform-specific types or macros, so they don't need any platform SDK installed
+beyond what they already have for their own code.
+
+The platform-detection `#define`s (`CCTHREAD_PLATFORM_WINDOWS` / `_POSIX`,
+`CCSEM_PLATFORM_WINDOWS` / `_POSIX`) remain in the headers as informational
+constants — consumers can use them for conditional compilation of their own code
+without pulling in any OS headers.
 
 ### macOS `dispatch_release` hangs in pure C
 `dispatch_release()` blocks indefinitely when called from pure C on modern macOS.  `ccsem_destroy` on macOS intentionally skips it — the GCD semaphore is reclaimed on process exit.  Do NOT add `dispatch_release` back without verifying against macOS ≥ 12 in a pure-C binary.

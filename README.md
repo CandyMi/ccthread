@@ -14,7 +14,7 @@ Both libraries share the same design:
 - Single-header API, single-source implementation
 - `extern "C"` — drop into C or C++ projects
 - `CCTHREAD_API` / `CCSEM_API` for MSVC DLL export and GCC visibility
-- Heap-allocated `typedef struct {…} name_t` (fields readable, modify via API)
+- Heap-allocated opaque `typedef struct name_impl name_t` (access through API functions only)
 - Consistent error codes: `_SUCCESS` (0), `_TIMEOUT` (-2), `_ERROR` (-1)
 
 ## Platforms

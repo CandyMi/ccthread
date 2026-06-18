@@ -26,6 +26,20 @@
 
 #include <stdlib.h>
 
+/* ---- opaque struct definition (keeps platform headers out of ccsem.h) ---- */
+
+struct ccsem_impl {
+#ifdef CCSEM_PLATFORM_WINDOWS
+    HANDLE                handle;
+#elif defined(__APPLE__)
+    dispatch_semaphore_t  sem;
+#else
+    pthread_mutex_t       mutex;
+    pthread_cond_t        cond;
+    unsigned int          count;
+#endif
+};
+
 /* ================================================================== */
 /*  ccsem_create                                                        */
 /* ================================================================== */

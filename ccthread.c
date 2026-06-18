@@ -32,6 +32,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- opaque struct definition (keeps platform headers out of ccthread.h) ---- */
+
+struct ccthread_impl {
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+    HANDLE           handle;
+    DWORD            tid;
+#else
+    pthread_t        handle;
+#endif
+
+    ccthread_func_t  func;
+    void*            arg;
+    void*            result;
+
+    int              detached;   /* use atomic access */
+    int              joined;     /* use atomic access */
+    int              finished;   /* use atomic access */
+
+    int              is_self;
+};
+
 /* ---- compiler-agnostic atomic store / load (acquire-release) ---- */
 #if defined(__GNUC__) || defined(__clang__)
   #define CCTHREAD_ATOMIC_STORE(p, v) \
@@ -49,7 +70,7 @@
   #define CCTHREAD_ATOMIC_LOAD(p)      (*(volatile int*)(p))
 #endif
 
-/* struct ccthread_impl is now defined in ccthread.h */
+/* struct ccthread_impl is defined above — opaque to API consumers */
 
 /* ================================================================== */
 /*  Internal: thread wrapper                                           */

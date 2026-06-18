@@ -32,21 +32,8 @@ extern "C" {
   #define CCSEM_PLATFORM_POSIX   1   /**< POSIX (Linux / macOS / BSD) */
 #endif
 
-/* ---- platform headers (required for struct fields) ---- */
-
-#ifdef CCSEM_PLATFORM_WINDOWS
-  #ifndef _WIN32_WINNT
-    #define _WIN32_WINNT 0x0600
-  #endif
-  #ifndef WIN32_LEAN_AND_MEAN
-    #define WIN32_LEAN_AND_MEAN
-  #endif
-  #include <windows.h>
-#elif defined(__APPLE__)
-  #include <dispatch/dispatch.h>
-#else
-  #include <pthread.h>
-#endif
+/* ---- struct is opaque (definition lives in ccsem.c) ---- */
+/* ---- platform headers are internal to the implementation ---- */
 
 /* ------------------------------------------------------------------ */
 /*  Symbol export / import (MSVC / GCC visibility)                     */
@@ -92,20 +79,13 @@ extern "C" {
 /**
  * @brief Semaphore handle.
  *
- * Heap-allocated by ccsem_create(); must be freed with ccsem_destroy().
- * Fields are readable but must only be modified through the API.
+ * Opaque struct — heap-allocated by ccsem_create(); must be freed with
+ * ccsem_destroy().  All access is through the public API functions.
+ *
+ * @note The full struct definition is in ccsem.c to avoid exposing
+ *       platform-specific headers (Win32 / GCD / pthread) to the consumer.
  */
-typedef struct ccsem_impl {
-#ifdef CCSEM_PLATFORM_WINDOWS
-    HANDLE                handle;   /**< Win32 semaphore kernel object */
-#elif defined(__APPLE__)
-    dispatch_semaphore_t  sem;      /**< GCD semaphore (macOS / iOS) */
-#else
-    pthread_mutex_t       mutex;    /**< Guards count and cond */
-    pthread_cond_t        cond;     /**< Wait / signal condition (CLOCK_MONOTONIC) */
-    unsigned int          count;    /**< Current semaphore value */
-#endif
-} ccsem_t;
+typedef struct ccsem_impl ccsem_t;
 
 /** @} */ /* end of ccsem_types */
 
