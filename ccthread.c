@@ -416,8 +416,10 @@ int ccthread_set_name(ccthread_t* thread, const char* name) {
         if (!pSetThreadDesc) {
             HMODULE mod = GetModuleHandleW(L"kernel32.dll");
             if (mod) {
-                pSetThreadDesc = (SetThreadDesc_fn)
-                    GetProcAddress(mod, "SetThreadDescription");
+                {
+                    FARPROC fp = GetProcAddress(mod, "SetThreadDescription");
+                    memcpy(&pSetThreadDesc, &fp, sizeof pSetThreadDesc);
+                }
             }
             if (!pSetThreadDesc) {
                 /* SetThreadDescription unavailable — pre-Win10.

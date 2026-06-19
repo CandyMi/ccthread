@@ -77,6 +77,9 @@ if(UNIX)
 endif()
 
 target_compile_definitions(ccthread_obj PRIVATE    CCTHREAD_BUILD_DLL)
+if(CCTHREAD_PLATFORM_LINUX)
+    target_compile_definitions(ccthread_obj PRIVATE _GNU_SOURCE)
+endif()
 target_compile_definitions(ccthread_obj INTERFACE  CCTHREAD_USE_DLL)
 
 # ====================================================================

@@ -8,6 +8,10 @@
  * Compile (MSVC):    cl examples\ccthread_naming.c ccthread.c
  */
 
+#if defined(_MSC_VER)
+  #define _CRT_NONSTDC_NO_WARNINGS  /* getpid -> _getpid deprecation */
+#endif
+
 #include "ccthread.h"
 #include <stdio.h>
 #ifdef _WIN32

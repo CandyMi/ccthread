@@ -1,0 +1,236 @@
+# ====================================================================
+#  CI workflow for ccthread
+#
+#  Verifies:
+#   - Builds shared library (always)
+#   - Builds static library (except macOS — no -static support)
+#   - Builds all examples as C99
+#   - Runs all examples as CTest tests
+#   - Compiles all headers + a smoke test as C++ (C++ embedding)
+#   - Zero warnings with -Werror / /WX equivalents
+#   - Runs additional static-link smoke test (Linux only)
+# ====================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ==================================================================
+  #  Linux — gcc + clang
+  # ==================================================================
+  linux:
+    name: Linux (${{ matrix.cc }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+          -DCMAKE_C_COMPILER=${{ matrix.cc }}
+
+      - name: Build (C)
+        run: cmake --build build --parallel -- VERBOSE=1
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Static-link smoke test (Linux only)
+        run: cmake --build build --target ccthread_static_test --parallel
+
+      # --- C++ compilation check (compile+link in one pass) ---
+      - name: C++ smoke — compile+link as C++
+        run: |
+          ${{ matrix.cc == 'clang' && 'clang++' || 'g++' }} \
+          -std=c++11 -I. -lpthread -o /tmp/cxx_smoke \
+          -x c++ ccthread.c ccsem.c ccmutex.c ccspinlock.c ccrwlock.c \
+          -x c++ - <<'PLAINTEXT'
+          #include <stddef.h>
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() {
+              ccthread_t* t = ccthread_create(NULL, NULL);
+              ccsem_t* s = ccsem_create(0);
+              ccmutex_t* m = ccmutex_create(CCRECURSION_PLAIN);
+              (void)t; (void)s; (void)m;
+              return 0;
+          }
+          PLAINTEXT
+
+      - name: C++ smoke — header-only inclusion check
+        run: |
+          ${{ matrix.cc == 'clang' && 'clang++' || 'g++' }} \
+          -std=c++11 -I. -lpthread -o /tmp/cxx_include_check \
+          -x c++ - <<'PLAINTEXT'
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() { return 0; }
+          PLAINTEXT
+
+  # ==================================================================
+  #  macOS — AppleClang
+  # ==================================================================
+  macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+
+      - name: Build (C)
+        run: cmake --build build --parallel -- VERBOSE=1
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure
+
+      # --- C++ compilation check (compile+link in one pass) ---
+      - name: C++ smoke — compile+link as C++
+        run: |
+          clang++ -std=c++11 -I. -lpthread -o /tmp/cxx_smoke \
+          -x c++ ccthread.c ccsem.c ccmutex.c ccspinlock.c ccrwlock.c \
+          -x c++ - <<'PLAINTEXT'
+          #include <stddef.h>
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() {
+              ccthread_t* t = ccthread_create(NULL, NULL);
+              ccsem_t* s = ccsem_create(0);
+              ccmutex_t* m = ccmutex_create(CCRECURSION_PLAIN);
+              (void)t; (void)s; (void)m;
+              return 0;
+          }
+          PLAINTEXT
+
+      - name: C++ smoke — header-only inclusion check
+        run: |
+          clang++ -std=c++11 -I. -o /tmp/cxx_include_check \
+          -x c++ - <<'PLAINTEXT'
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() { return 0; }
+          PLAINTEXT
+
+  # ==================================================================
+  #  Windows — MSVC (Visual Studio 2022)
+  # ==================================================================
+  windows:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+
+      - name: Build (C)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure -C ${{ env.BUILD_TYPE }}
+
+      # --- C++ compatibility: verified by Linux + macOS smoke tests above ---
+      # (cl.exe not directly available from PowerShell on Windows runner)
+
+  # ==================================================================
+  #  Windows — MinGW-w64 (gcc)
+  # ==================================================================
+  mingw:
+    name: Windows (MinGW)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            make
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+          -G "Unix Makefiles"
+
+      - name: Build (C)
+        run: cmake --build build --parallel
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure
+
+      # --- C++ compilation check ---
+      - name: C++ smoke — compile+link as C++
+        run: |
+          g++ -std=c++11 -I. -lpthread -o /tmp/cxx_smoke \
+          -x c++ ccthread.c ccsem.c ccmutex.c ccspinlock.c ccrwlock.c \
+          -x c++ - <<'PLAINTEXT'
+          #include <stddef.h>
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() {
+              ccthread_t* t = ccthread_create(NULL, NULL);
+              ccsem_t* s = ccsem_create(0);
+              ccmutex_t* m = ccmutex_create(CCRECURSION_PLAIN);
+              (void)t; (void)s; (void)m;
+              return 0;
+          }
+          PLAINTEXT
+
+      - name: C++ smoke — header-only inclusion check
+        run: |
+          g++ -std=c++11 -I. -lpthread -o /tmp/cxx_include_check \
+          -x c++ - <<'PLAINTEXT'
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() { return 0; }
+          PLAINTEXT

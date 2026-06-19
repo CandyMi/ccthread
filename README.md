@@ -1,5 +1,15 @@
 # ccthread
 
+[![Linux](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=linux&label=Linux&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
+[![macOS](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=macos&label=macOS&logo=apple&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
+[![Windows](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=windows&label=Windows&logo=windows&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
+
+[![Language](https://img.shields.io/badge/language-C%20%2F%20C%2B%2B-555?logo=c&logoColor=white)](.)
+[![Standard](https://img.shields.io/badge/standard-C99%20%2F%20C%2B%2B11-004080)](.)
+[![Docs](https://img.shields.io/badge/docs-API.md-blue?logo=readthedocs&logoColor=white)](API.md)
+[![Model](https://img.shields.io/badge/model-Thread%20%2F%20Semaphore%20%2F%20Lock-7b2d8e)](.)
+[![Use Cases](https://img.shields.io/badge/use%20cases-Embedded%20%2F%20Systems%20%2F%20Games-2a9d46)](.)
+
 Cross-platform C/C++ concurrency primitives — threads, semaphores, mutexes,
 spinlocks, and read-write locks — with zero external dependencies beyond the OS.
 

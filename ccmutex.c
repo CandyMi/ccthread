@@ -37,7 +37,7 @@ struct ccmutex_impl {
     union {
         SRWLOCK          srw;      /* PLAIN mode */
         CRITICAL_SECTION cs;       /* RECURSIVE mode */
-    };
+    } u;
 #else
     pthread_mutex_t mutex;         /* attr: DEFAULT or RECURSIVE */
 #endif
@@ -58,7 +58,7 @@ ccmutex_t* ccmutex_create(ccrecursion_t type) {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     mtx->recursive = (type != CCRECURSION_PLAIN);
     if (mtx->recursive) {
-        InitializeCriticalSection(&mtx->cs);
+        InitializeCriticalSection(&mtx->u.cs);
     }
     /* PLAIN: SRWLOCK is zero-initialised by calloc */
 #else
@@ -94,10 +94,10 @@ ccmutex_state_t ccmutex_trylock(ccmutex_t* mtx) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     if (mtx->recursive) {
-        return TryEnterCriticalSection(&mtx->cs)
+        return TryEnterCriticalSection(&mtx->u.cs)
                    ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
     }
-    return TryAcquireSRWLockExclusive(&mtx->srw)
+    return TryAcquireSRWLockExclusive(&mtx->u.srw)
                ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
 #else
     return (pthread_mutex_trylock(&mtx->mutex) == 0)
@@ -130,9 +130,9 @@ ccmutex_state_t ccmutex_unlock(ccmutex_t* mtx) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     if (mtx->recursive) {
-        LeaveCriticalSection(&mtx->cs);
+        LeaveCriticalSection(&mtx->u.cs);
     } else {
-        ReleaseSRWLockExclusive(&mtx->srw);
+        ReleaseSRWLockExclusive(&mtx->u.srw);
     }
 #else
     pthread_mutex_unlock(&mtx->mutex);
@@ -151,7 +151,7 @@ void ccmutex_destroy(ccmutex_t* mtx) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     if (mtx->recursive) {
-        DeleteCriticalSection(&mtx->cs);
+        DeleteCriticalSection(&mtx->u.cs);
     }
     /* SRWLOCK: no cleanup needed */
 #else
