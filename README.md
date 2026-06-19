@@ -6,7 +6,8 @@
 
 [![Language](https://img.shields.io/badge/language-C%20%2F%20C%2B%2B-555?logo=c&logoColor=white)](.)
 [![Standard](https://img.shields.io/badge/standard-C99%20%2F%20C%2B%2B11-004080)](.)
-[![Docs](https://img.shields.io/badge/docs-API.md-blue?logo=readthedocs&logoColor=white)](API.md)
+[![Docs](https://img.shields.io/badge/docs-architecture-blue?logo=readthedocs&logoColor=white)](docs/README.md)
+
 [![Model](https://img.shields.io/badge/model-Thread%20%2F%20Semaphore%20%2F%20Lock-7b2d8e)](.)
 [![Use Cases](https://img.shields.io/badge/use%20cases-Embedded%20%2F%20Systems%20%2F%20Games-2a9d46)](.)
 
@@ -26,6 +27,7 @@ spinlocks, and read-write locks — with zero external dependencies beyond the O
 | [`ccthread.h`](ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
 | [`ccsem.h`](ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
 | [`ccmutex.h`](ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
+| [`ccatomic.h`](ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
 
 All headers:
 - `extern "C"` — drop into C or C++ projects  
@@ -50,7 +52,7 @@ cmake -S . -B build
 cmake --build build
 ```
 
-Produces both static and shared libraries plus examples:
+Produces both static and shared libraries:
 
 ```
 build/
@@ -58,20 +60,20 @@ build/
   libccthread.so         # shared library (Linux)
   libccthread.dylib      # shared library (macOS)
   ccthread.dll / .lib    # shared library (Windows)
-  ccthread_basic
-  ccsem_producer_consumer
-  ccmutex_basic
-  ccspinlock_basic
-  ccrwlock_basic
  ```
+
+With examples enabled (`-DBUILD_EXAMPLES=ON`): `ccthread_basic`, `ccthread_detach`, `ccthread_naming`,
+`ccsem_producer_consumer`, `ccsem_timeout`, `ccmutex_basic`, `ccspinlock_basic`, `ccrwlock_basic`.
 
 | CMake option | Default | Description |
 |--------------|---------|-------------|
-| `BUILD_SHARED_LIBS` | `ON` | Build shared library in addition to static |
-| `BUILD_EXAMPLES` | `ON` | Build example programs |
-| `BUILD_TESTING` | `ON` | Register examples with CTest |
+| `BUILD_EXAMPLES` | `OFF` | Build example programs |
+| `BUILD_TESTING` | `OFF` | Register examples with CTest |
 
 ```sh
+# With examples enabled:
+cmake -B build -DBUILD_EXAMPLES=ON -DBUILD_TESTING=ON
+cmake --build build
 ctest --test-dir build        # run all examples as tests
 cmake --install build --prefix /usr/local
 ```
