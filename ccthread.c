@@ -181,7 +181,7 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg) {
         ccthread_wrapper,
         thread,                 /* arg to wrapper */
         0,                      /* run immediately */
-        &thread->tid
+        (LPDWORD)&thread->tid
     );
 
     if (!thread->handle) {
