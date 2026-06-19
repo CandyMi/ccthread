@@ -37,29 +37,31 @@
   #ifdef __APPLE__
     #include <dispatch/dispatch.h>  /* dispatch_semaphore (ccsem) */
   #endif
+  #ifdef __linux__
+    #include <sys/syscall.h>      /* SYS_gettid */
+  #endif
 #endif
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- opaque struct definitions (keeps platform headers out of ccthread.h) ---- */
+/* ---- opaque struct definition ---- */
 
 struct ccthread_impl {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     HANDLE           handle;
-    DWORD            tid;
 #else
     pthread_t        handle;
 #endif
-
     ccthread_func_t  func;
     void*            arg;
     void*            result;
-
-    int              detached;   /* use atomic access */
-    int              joined;     /* use atomic access */
-    int              finished;   /* use atomic access */
-
+    int              detached;
+    int              joined;
+    int              finished;
+    int              cleanup_claimed;
+    uint32_t         tid;         /* OS thread ID, populated by wrapper / ccthread_self */
     int              is_self;
 };
 
@@ -117,28 +119,28 @@ static void* ccthread_wrapper(void* arg) {
     ccthread_self_ptr = thread;
 #endif
 
+    /* Populate numeric TID (Windows: already set by CreateThread; POSIX: set here) */
+    thread->tid = ccthread_gettid(NULL);
+
     /* Run the user's function */
     void* ret = func(uarg);
 
-    /* Store result, mark finished, and self-destruct if detached */
+    /* Store result and mark finished */
     thread->result   = ret;
     ccatomic_store_release(&thread->finished, 1);
 
     if (ccatomic_load_acquire(&thread->detached)) {
-        /* Detached — we are responsible for cleanup.
-         *
-         * ccthread_detach() also checks `finished` after setting
-         * `detached`; the double-check from both sides guarantees
-         * exactly one frees the struct even under scheduling races.
-         *
-         * On weakly-ordered architectures a tiny leak is theoretically
-         * possible; in practice the window is negligible. */
+        /* Thread was detached — at most one of us (wrapper or detach caller)
+         * gets to free the struct.  Atomic exchange = test-and-set: the first
+         * to grab cleanup_claimed (0→1) wins; the loser skips. */
+        if (ccatomic_exchange_acquire(&thread->cleanup_claimed, 1) == 0) {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
-        if (thread->handle) {
-            CloseHandle(thread->handle);
-        }
+            if (thread->handle) {
+                CloseHandle(thread->handle);
+            }
 #endif
-        free(thread);
+            free(thread);
+        }
     }
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
@@ -269,10 +271,13 @@ int ccthread_detach(ccthread_t* thread) {
 
     ccatomic_store_release(&thread->detached, 1);
 
-    /* If the wrapper has already exited, it missed the `detached` flag
-     * and didn't free — we must free now.  Otherwise the wrapper will. */
+    /* If the wrapper has already exited, it may have missed the `detached`
+     * flag.  We must claim cleanup if we get there first; if the wrapper
+     * already claimed it (swap returned 1), we skip. */
     if (ccatomic_load_acquire(&thread->finished)) {
-        free(thread);
+        if (ccatomic_exchange_acquire(&thread->cleanup_claimed, 1) == 0) {
+            free(thread);
+        }
     }
 
     return CCTHREAD_SUCCESS;
@@ -353,10 +358,11 @@ ccthread_t* ccthread_self(void) {
             free(self);
             return NULL;
         }
-        self->tid = GetCurrentThreadId();
+        self->tid = ccthread_gettid(NULL);
     }
 #else
     self->handle = pthread_self();
+    self->tid = ccthread_gettid(NULL);
 #endif
 
     ccthread_self_ptr = self;
@@ -381,6 +387,39 @@ int ccthread_equal(ccthread_t* a, ccthread_t* b) {
 #else
     return pthread_equal(a->handle, b->handle);
 #endif
+}
+
+/* ================================================================== */
+/*  ccthread_gettid                                                     */
+/* ================================================================== */
+
+static uint32_t _ccthread_gettid(void) {
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+    return (uint32_t)GetCurrentThreadId();
+#elif defined(__linux__)
+    return (uint32_t)syscall(SYS_gettid);
+#elif defined(__APPLE__)
+    {
+        uint64_t tid = 0;
+        int rc = pthread_threadid_np(NULL, &tid);
+        if (rc != 0) return 0;
+        return (uint32_t)tid;
+    }
+#elif defined(__FreeBSD__)
+    return (uint32_t)pthread_getthreadid_np();
+#else
+    /* Fallback: use pthread_t as a numeric identifier */
+    return (uint32_t)(uintptr_t)pthread_self();
+#endif
+}
+
+/* ================================================================== */
+/*  ccthread_gettid                                                     */
+/* ================================================================== */
+
+uint32_t ccthread_gettid(const ccthread_t* thread) {
+    if (thread) return thread->tid;
+    return _ccthread_gettid();
 }
 
 /* ================================================================== */
@@ -432,8 +471,7 @@ int ccthread_set_name(ccthread_t* thread, const char* name) {
                     ULONG_PTR args[4];
                     args[0] = 0x1000;                    /* dwType */
                     args[1] = (ULONG_PTR)(LPCSTR)buf;    /* szName */
-                    args[2] = (thread ? thread->tid
-                                      : GetCurrentThreadId()); /* dwThreadID */
+                    args[2] = (thread ? thread->tid : ccthread_gettid(NULL)); /* dwThreadID */
                     args[3] = 0;                         /* dwFlags */
                     __try {
                         RaiseException(0x406D1388, 0, 4, args);

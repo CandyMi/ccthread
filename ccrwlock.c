@@ -37,7 +37,6 @@ struct ccrwlock_impl {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     SRWLOCK          srw;
     ccthread_t*      writer_owner; /* current writer, or NULL */
-    int              reader_count; /* shared lock holders */
 #else
     pthread_rwlock_t rwlock;
 #endif
@@ -82,7 +81,6 @@ ccmutex_state_t ccrwlock_rdlock(ccrwlock_t* rw) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     AcquireSRWLockShared(&rw->srw);
-    rw->reader_count++;
 #else
     {
         int rc = pthread_rwlock_rdlock(&rw->rwlock);
@@ -105,7 +103,6 @@ ccmutex_state_t ccrwlock_tryrdlock(ccrwlock_t* rw) {
     if (!TryAcquireSRWLockShared(&rw->srw)) {
         return CCMUTEX_ERROR;
     }
-    rw->reader_count++;
     return CCMUTEX_SUCCESS;
 #else
     return (pthread_rwlock_tryrdlock(&rw->rwlock) == 0)
@@ -165,14 +162,14 @@ ccmutex_state_t ccrwlock_unlock(ccrwlock_t* rw) {
     }
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
-    /* Auto-detect: writer or reader? */
+    /* Auto-detect: writer or reader?
+     * writer_owner tracks the exclusive lock holder (NULL = no writer).
+     * If caller is the writer → exclusive release; otherwise → shared release.
+     * No reader_count needed — SRWLOCK tracks shared ownership internally. */
     if (rw->writer_owner && ccthread_equal(rw->writer_owner, ccthread_self())) {
         rw->writer_owner = NULL;
         ReleaseSRWLockExclusive(&rw->srw);
     } else {
-        if (rw->reader_count > 0) {
-            rw->reader_count--;
-        }
         ReleaseSRWLockShared(&rw->srw);
     }
 #else

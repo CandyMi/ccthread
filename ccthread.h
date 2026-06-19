@@ -26,8 +26,11 @@ extern "C" {
   #define CCTHREAD_PLATFORM_POSIX   1   /**< POSIX (Linux / macOS / BSD) */
 #endif
 
-/* ---- struct is opaque (definition lives in ccthread.c) ---- */
-/* ---- platform headers are internal to the implementation ---- */
+/* ---- standard integer types (C99) ---- */
+#include <stdint.h>
+
+/* ---- struct is opaque (definition in ccthread.c) ---- */
+typedef struct ccthread_impl ccthread_t;
 
 /* ------------------------------------------------------------------ */
 
@@ -75,18 +78,6 @@ extern "C" {
  * @see ccthread_join()
  */
 typedef void* (*ccthread_func_t)(void* arg);
-
-/**
- * @brief Thread handle.
- *
- * Opaque struct — heap-allocated by ccthread_create() or ccthread_self().
- * All access is through the public API functions.
- *
- * @note The full struct definition is in ccthread.c to avoid exposing
- *       platform-specific headers (Win32 / pthread) to the consumer.
- */
-typedef struct ccthread_impl ccthread_t;
-
 
 
 /* ------------------------------------------------------------------ */
@@ -225,6 +216,36 @@ CCTHREAD_API ccthread_t* ccthread_self(void);
  */
 CCTHREAD_API int ccthread_equal(ccthread_t* a, ccthread_t* b);
 
+
+/* ------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Get the numeric OS thread ID.
+ *
+ * If @p thread is non-NULL, returns the TID stored in that handle.
+ * If @p thread is NULL, returns the calling thread's OS TID.
+ *
+ * @param[in]  thread  thread handle, or NULL for the calling thread
+ * @return             numeric thread identifier (> 0 on success)
+ * @retval 0           @p thread is non-NULL but TID has not been populated
+ *
+ * @par Platform mapping
+ * | Platform        | Source                    |
+ * |-----------------|---------------------------|
+ * | Windows         | GetCurrentThreadId()      |
+ * | Linux           | gettid() syscall          |
+ * | macOS           | pthread_threadid_np()     |
+ * | FreeBSD         | pthread_getthreadid_np()  |
+ *
+ * @note On macOS the native ID is 64-bit; the returned value is truncated
+ *       to 32 bits, which is sufficient for logging and display.
+ * @note Unlike ccthread_self(), this function returns a raw integer,
+ *       not a heap-allocated handle — no cleanup needed.
+ */
+CCTHREAD_API uint32_t ccthread_gettid(const ccthread_t* thread);
 
 
 /* ------------------------------------------------------------------ */
