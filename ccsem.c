@@ -1,12 +1,12 @@
-/*
- * ccsem.c — Cross-platform C/C++ semaphore library implementation
+/**
+ * @file      ccsem.c
+ * @author    candy <https://github.com/CandyMi/ccthread>
+ * @brief     Counting semaphore implementation (part of ccthread library)
  *
  * Windows : Win32 semaphore  (CreateSemaphore / WaitForSingleObject / ReleaseSemaphore)
  * macOS   : Grand Central Dispatch  (dispatch_semaphore)
  * POSIX   : pthread mutex + condition variable
  */
-
-/* ---- platform adjustments (must precede any include that may pull in <windows.h>) ---- */
 
 #if defined(_WIN32) || defined(_WIN64)
   #ifndef _WIN32_WINNT
@@ -18,23 +18,35 @@
 #endif
 
 #include "ccsem.h"
+#include "ccthread.h"
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
   #include <windows.h>
 #elif defined(__APPLE__)
   #include <dispatch/dispatch.h>
 #else
   #include <pthread.h>
   #include <errno.h>
-  #include <time.h>         /* clock_gettime / struct timespec */
+  #include <time.h>
 #endif
 
 #include <stdlib.h>
 
-/* ---- opaque struct definition (keeps platform headers out of ccsem.h) ---- */
+/* ---- CLOCK_MONOTONIC portability (HP-UX < 11i v3 uses CLOCK_HIGHRES) ---- */
+#ifndef CLOCK_MONOTONIC
+  #if defined(CLOCK_HIGHRES)
+    #define CCMUTEX_CLOCK_ID CLOCK_HIGHRES
+  #else
+    #define CCMUTEX_CLOCK_ID CLOCK_REALTIME
+  #endif
+#else
+  #define CCMUTEX_CLOCK_ID CLOCK_MONOTONIC
+#endif
+
+/* ---- opaque struct definition ---- */
 
 struct ccsem_impl {
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     HANDLE                handle;
 #elif defined(__APPLE__)
     dispatch_semaphore_t  sem;
@@ -57,7 +69,7 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
         return NULL;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     sem->handle = CreateSemaphoreW(
         NULL,                    /* default security */
         (LONG)initial_count,     /* initial count */
@@ -76,7 +88,6 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
         return NULL;
     }
 #else
-    /* pthread mutex + condvar (Linux / BSD / other POSIX) */
     {
         int rc;
 
@@ -89,7 +100,7 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
         {
             pthread_condattr_t attr;
             pthread_condattr_init(&attr);
-            pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+            pthread_condattr_setclock(&attr, CCMUTEX_CLOCK_ID);
             rc = pthread_cond_init(&sem->cond, &attr);
             pthread_condattr_destroy(&attr);
         }
@@ -110,40 +121,39 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
 /*  ccsem_wait                                                          */
 /* ================================================================== */
 
-int ccsem_wait(ccsem_t* sem) {
+ccmutex_state_t ccsem_wait(ccsem_t* sem) {
     if (!sem) {
-        return CCSEM_ERROR;
+        return CCMUTEX_ERROR;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     {
         DWORD rc = WaitForSingleObject(sem->handle, INFINITE);
-        return (rc == WAIT_OBJECT_0) ? CCSEM_SUCCESS : CCSEM_ERROR;
+        return (rc == WAIT_OBJECT_0) ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
     }
 #elif defined(__APPLE__)
     return (dispatch_semaphore_wait(sem->sem, DISPATCH_TIME_FOREVER) == 0)
-               ? CCSEM_SUCCESS : CCSEM_ERROR;
+               ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
 #else
     {
         int rc;
 
         rc = pthread_mutex_lock(&sem->mutex);
         if (rc != 0) {
-            return CCSEM_ERROR;
+            return CCMUTEX_ERROR;
         }
 
-        /* Loop to guard against spurious wakeups */
         while (sem->count == 0) {
             rc = pthread_cond_wait(&sem->cond, &sem->mutex);
             if (rc != 0) {
                 pthread_mutex_unlock(&sem->mutex);
-                return CCSEM_ERROR;
+                return CCMUTEX_ERROR;
             }
         }
 
         sem->count--;
         pthread_mutex_unlock(&sem->mutex);
-        return CCSEM_SUCCESS;
+        return CCMUTEX_SUCCESS;
     }
 #endif
 }
@@ -152,34 +162,34 @@ int ccsem_wait(ccsem_t* sem) {
 /*  ccsem_trywait                                                       */
 /* ================================================================== */
 
-int ccsem_trywait(ccsem_t* sem) {
+ccmutex_state_t ccsem_trywait(ccsem_t* sem) {
     if (!sem) {
-        return CCSEM_ERROR;
+        return CCMUTEX_ERROR;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     {
         DWORD rc = WaitForSingleObject(sem->handle, 0);
-        if (rc == WAIT_OBJECT_0)  return CCSEM_SUCCESS;
-        if (rc == WAIT_TIMEOUT)   return CCSEM_TIMEOUT;
-        return CCSEM_ERROR;
+        if (rc == WAIT_OBJECT_0)  return CCMUTEX_SUCCESS;
+        if (rc == WAIT_TIMEOUT)   return CCMUTEX_TIMEOUT;
+        return CCMUTEX_ERROR;
     }
 #elif defined(__APPLE__)
     return (dispatch_semaphore_wait(sem->sem, DISPATCH_TIME_NOW) == 0)
-               ? CCSEM_SUCCESS : CCSEM_TIMEOUT;
+               ? CCMUTEX_SUCCESS : CCMUTEX_TIMEOUT;
 #else
     {
         int rc = pthread_mutex_lock(&sem->mutex);
         if (rc != 0) {
-            return CCSEM_ERROR;
+            return CCMUTEX_ERROR;
         }
         if (sem->count > 0) {
             sem->count--;
             pthread_mutex_unlock(&sem->mutex);
-            return CCSEM_SUCCESS;
+            return CCMUTEX_SUCCESS;
         }
         pthread_mutex_unlock(&sem->mutex);
-        return CCSEM_TIMEOUT;
+        return CCMUTEX_TIMEOUT;
     }
 #endif
 }
@@ -188,24 +198,24 @@ int ccsem_trywait(ccsem_t* sem) {
 /*  ccsem_timedwait                                                     */
 /* ================================================================== */
 
-int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
+ccmutex_state_t ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
     if (!sem) {
-        return CCSEM_ERROR;
+        return CCMUTEX_ERROR;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     {
         DWORD rc = WaitForSingleObject(sem->handle, (DWORD)timeout_ms);
-        if (rc == WAIT_OBJECT_0)  return CCSEM_SUCCESS;
-        if (rc == WAIT_TIMEOUT)   return CCSEM_TIMEOUT;
-        return CCSEM_ERROR;
+        if (rc == WAIT_OBJECT_0)  return CCMUTEX_SUCCESS;
+        if (rc == WAIT_TIMEOUT)   return CCMUTEX_TIMEOUT;
+        return CCMUTEX_ERROR;
     }
 #elif defined(__APPLE__)
     {
         dispatch_time_t deadline = dispatch_time(
             DISPATCH_TIME_NOW, (int64_t)timeout_ms * NSEC_PER_MSEC);
         return (dispatch_semaphore_wait(sem->sem, deadline) == 0)
-                   ? CCSEM_SUCCESS : CCSEM_TIMEOUT;
+                   ? CCMUTEX_SUCCESS : CCMUTEX_TIMEOUT;
     }
 #else
     {
@@ -213,20 +223,18 @@ int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
 
         rc = pthread_mutex_lock(&sem->mutex);
         if (rc != 0) {
-            return CCSEM_ERROR;
+            return CCMUTEX_ERROR;
         }
 
-        /* Fast path: count already available */
         if (sem->count > 0) {
             sem->count--;
             pthread_mutex_unlock(&sem->mutex);
-            return CCSEM_SUCCESS;
+            return CCMUTEX_SUCCESS;
         }
 
-        /* Compute absolute deadline */
         {
             struct timespec ts;
-            clock_gettime(CLOCK_MONOTONIC, &ts);
+            clock_gettime(CCMUTEX_CLOCK_ID, &ts);
             ts.tv_sec  += (time_t)(timeout_ms / 1000);
             ts.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
             if (ts.tv_nsec >= 1000000000L) {
@@ -238,18 +246,18 @@ int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
                 rc = pthread_cond_timedwait(&sem->cond, &sem->mutex, &ts);
                 if (rc == ETIMEDOUT) {
                     pthread_mutex_unlock(&sem->mutex);
-                    return CCSEM_TIMEOUT;
+                    return CCMUTEX_TIMEOUT;
                 }
                 if (rc != 0) {
                     pthread_mutex_unlock(&sem->mutex);
-                    return CCSEM_ERROR;
+                    return CCMUTEX_ERROR;
                 }
             }
         }
 
         sem->count--;
         pthread_mutex_unlock(&sem->mutex);
-        return CCSEM_SUCCESS;
+        return CCMUTEX_SUCCESS;
     }
 #endif
 }
@@ -258,37 +266,34 @@ int ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms) {
 /*  ccsem_post                                                          */
 /* ================================================================== */
 
-int ccsem_post(ccsem_t* sem) {
+ccmutex_state_t ccsem_post(ccsem_t* sem) {
     if (!sem) {
-        return CCSEM_ERROR;
+        return CCMUTEX_ERROR;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     {
         BOOL ok = ReleaseSemaphore(sem->handle, 1, NULL);
-        return ok ? CCSEM_SUCCESS : CCSEM_ERROR;
+        return ok ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
     }
 #elif defined(__APPLE__)
-    /* dispatch_semaphore_signal always succeeds; return value
-     * indicates whether a waiter was woken (non-zero) or not. */
     dispatch_semaphore_signal(sem->sem);
-    return CCSEM_SUCCESS;
+    return CCMUTEX_SUCCESS;
 #else
     {
         int rc;
 
         rc = pthread_mutex_lock(&sem->mutex);
         if (rc != 0) {
-            return CCSEM_ERROR;
+            return CCMUTEX_ERROR;
         }
 
         sem->count++;
 
-        /* Wake one waiter */
         rc = pthread_cond_signal(&sem->cond);
         pthread_mutex_unlock(&sem->mutex);
 
-        return (rc == 0) ? CCSEM_SUCCESS : CCSEM_ERROR;
+        return (rc == 0) ? CCMUTEX_SUCCESS : CCMUTEX_ERROR;
     }
 #endif
 }
@@ -302,14 +307,11 @@ void ccsem_destroy(ccsem_t* sem) {
         return;
     }
 
-#ifdef CCSEM_PLATFORM_WINDOWS
+#ifdef CCTHREAD_PLATFORM_WINDOWS
     if (sem->handle) {
         CloseHandle(sem->handle);
     }
 #elif defined(__APPLE__)
-    /* dispatch_release() is managed by the ObjC runtime on modern macOS;
-     * calling it from pure C can hang.  The semaphore is reclaimed on
-     * process exit — we only free the wrapper struct. */
     (void)sem->sem;
 #else
     pthread_mutex_destroy(&sem->mutex);

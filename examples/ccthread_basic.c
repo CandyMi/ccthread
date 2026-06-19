@@ -74,8 +74,7 @@ int main(void) {
         printf("same thread? %s\n",
                ccthread_equal(me1, me2) ? "yes" : "no");
 
-        ccthread_destroy(me1);  /* self() handles must be destroyed */
-        ccthread_destroy(me2);
+        /* self() handles are TLS-cached and auto-reclaimed — no destroy needed */
     }
 
     /* ----------------------------------------------------------- */

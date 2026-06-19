@@ -1,8 +1,7 @@
 /*
  * ccsem_timeout.c — Non-blocking and timed wait patterns
  *
- * Compile (POSIX):   cc -o timeout examples/ccsem_timeout.c ccsem.c ccthread.c -lpthread
- * Compile (MSVC):    cl examples\ccsem_timeout.c ccsem.c ccthread.c
+ * Compile:  cc -o ccsem_timeout examples/ccsem_timeout.c ccthread.c -lpthread
  */
 
 #include "ccsem.h"
@@ -15,18 +14,18 @@ static void poll_demo(void) {
 
     printf("  trywait on locked sem:  ");
     switch (ccsem_trywait(sem)) {
-    case CCSEM_SUCCESS: printf("acquired\n");  break;
-    case CCSEM_TIMEOUT: printf("would block\n"); break;
-    default:            printf("error\n");       break;
+    case CCMUTEX_SUCCESS: printf("acquired\n");  break;
+    case CCMUTEX_TIMEOUT: printf("would block\n"); break;
+    default:              printf("error\n");       break;
     }
 
     ccsem_post(sem);  /* unlock */
 
     printf("  trywait after post:     ");
     switch (ccsem_trywait(sem)) {
-    case CCSEM_SUCCESS: printf("acquired\n");  break;
-    case CCSEM_TIMEOUT: printf("would block\n"); break;
-    default:            printf("error\n");       break;
+    case CCMUTEX_SUCCESS: printf("acquired\n");  break;
+    case CCMUTEX_TIMEOUT: printf("would block\n"); break;
+    default:              printf("error\n");       break;
     }
 
     ccsem_destroy(sem);
@@ -50,16 +49,16 @@ static void timed_demo(void) {
     /* Wait up to 200ms — should wake before timeout */
     printf("  timedwait(200ms): ");
     int rc = ccsem_timedwait(sem, 200);
-    printf("%s\n", rc == CCSEM_SUCCESS ? "acquired" :
-                   rc == CCSEM_TIMEOUT ? "timeout" : "error");
+    printf("%s\n", rc == CCMUTEX_SUCCESS ? "acquired" :
+                   rc == CCMUTEX_TIMEOUT ? "timeout" : "error");
 
     ccthread_join(poster, NULL);
 
     /* Now try a timeout that expires before anyone posts */
     printf("  timedwait(50ms) on locked: ");
     rc = ccsem_timedwait(sem, 50);
-    printf("%s\n", rc == CCSEM_SUCCESS ? "acquired" :
-                   rc == CCSEM_TIMEOUT ? "timeout" : "error");
+    printf("%s\n", rc == CCMUTEX_SUCCESS ? "acquired" :
+                   rc == CCMUTEX_TIMEOUT ? "timeout" : "error");
 
     ccsem_destroy(sem);
 }
@@ -70,7 +69,7 @@ static void periodic_demo(void) {
     int      attempts = 0;
 
     printf("  polling every 10ms... ");
-    while (ccsem_timedwait(sem, 10) == CCSEM_TIMEOUT) {
+    while (ccsem_timedwait(sem, 10) == CCMUTEX_TIMEOUT) {
         attempts++;
         if (attempts >= 5) {
             printf("giving up after %d attempts\n", attempts);

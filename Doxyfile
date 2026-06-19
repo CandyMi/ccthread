@@ -1,0 +1,15 @@
+PROJECT_NAME           = "ccthread"
+PROJECT_BRIEF          = "Cross-platform C/C++ concurrency primitives"
+INPUT                  = README.md ccatomic.h ccthread.h ccthread.c ccsem.h ccsem.c ccmutex.h ccmutex.c ccspinlock.c ccrwlock.c
+RECURSIVE              = NO
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_HTML          = YES
+HTML_OUTPUT            = docs/doxygen

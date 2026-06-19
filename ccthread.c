@@ -1,5 +1,7 @@
-/*
- * ccthread.c — Cross-platform C/C++ thread library implementation
+/**
+ * @file      ccthread.c
+ * @author    candy <https://github.com/CandyMi/ccthread>
+ * @brief     Cross-platform C/C++ thread library implementation
  *
  * Windows   : Win32 threads (CreateThread / WaitForSingleObject / CloseHandle)
  * POSIX     : pthreads  (pthread_create / pthread_join  / pthread_detach)
@@ -27,17 +29,20 @@
   #include <pthread.h>
   #include <sched.h>              /* sched_yield */
   #include <unistd.h>             /* usleep / nanosleep */
-  #include <time.h>               /* nanosleep */
+  #include <time.h>               /* nanosleep, clock_gettime */
   #include <errno.h>
   #ifdef __FreeBSD__
     #include <pthread_np.h>       /* pthread_set_name_np */
+  #endif
+  #ifdef __APPLE__
+    #include <dispatch/dispatch.h>  /* dispatch_semaphore (ccsem) */
   #endif
 #endif
 
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- opaque struct definition (keeps platform headers out of ccthread.h) ---- */
+/* ---- opaque struct definitions (keeps platform headers out of ccthread.h) ---- */
 
 struct ccthread_impl {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
@@ -58,21 +63,38 @@ struct ccthread_impl {
     int              is_self;
 };
 
-/* ---- compiler-agnostic atomic store / load (acquire-release) ---- */
-#if defined(__GNUC__) || defined(__clang__)
-  #define CCTHREAD_ATOMIC_STORE(p, v) \
-      __atomic_store_n((p), (v), __ATOMIC_RELEASE)
-  #define CCTHREAD_ATOMIC_LOAD(p) \
-      __atomic_load_n((p), __ATOMIC_ACQUIRE)
+#include "ccatomic.h"
+
+/* ---- TLS portability shim ---- */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+  #define CCTHREAD_TLS _Thread_local           /* C11 */
+#elif defined(__cplusplus) && __cplusplus >= 201103L
+  #define CCTHREAD_TLS thread_local             /* C++11 */
 #elif defined(_MSC_VER)
-  #define CCTHREAD_ATOMIC_STORE(p, v) \
-      InterlockedExchange((LONG volatile*)(p), (LONG)(v))
-  #define CCTHREAD_ATOMIC_LOAD(p) \
-      InterlockedCompareExchange((LONG volatile*)(p), 0, 0)
-#else
-  /* fallback: volatile — correct on x86, tiny leak window on ARM */
-  #define CCTHREAD_ATOMIC_STORE(p, v)  (*(volatile int*)(p) = (int)(v))
-  #define CCTHREAD_ATOMIC_LOAD(p)      (*(volatile int*)(p))
+  #define CCTHREAD_TLS __declspec(thread)       /* MSVC */
+#elif defined(__GNUC__) || defined(__clang__)
+  #define CCTHREAD_TLS __thread                 /* GCC / Clang C99 extension */
+#endif
+
+#ifdef CCTHREAD_TLS
+/* Suppress -Wpedantic for __thread (GCC/Clang extension under -std=c99) */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+/* Per-thread cached pointer to the calling thread's handle.
+ * Set by the thread wrapper for create()'d threads, or lazily
+ * heap-allocated on first self() call (main thread / unknown). */
+static CCTHREAD_TLS ccthread_t*  ccthread_self_ptr;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#else  /* !CCTHREAD_TLS */
+#if defined(__GNUC__) || defined(__clang__)
+  #warning "ccthread: no TLS support — ccthread_self() will return NULL"
+#elif defined(_MSC_VER)
+  #pragma message("ccthread: no TLS support — ccthread_self() will return NULL")
+#endif
 #endif
 
 /* struct ccthread_impl is defined above — opaque to API consumers */
@@ -90,14 +112,19 @@ static void* ccthread_wrapper(void* arg) {
     ccthread_func_t  func   = thread->func;
     void*            uarg   = thread->arg;
 
+#ifdef CCTHREAD_TLS
+    /* Cache the create handle so ccthread_self() returns the same pointer */
+    ccthread_self_ptr = thread;
+#endif
+
     /* Run the user's function */
     void* ret = func(uarg);
 
     /* Store result, mark finished, and self-destruct if detached */
     thread->result   = ret;
-    CCTHREAD_ATOMIC_STORE(&thread->finished, 1);
+    ccatomic_store_release(&thread->finished, 1);
 
-    if (CCTHREAD_ATOMIC_LOAD(&thread->detached)) {
+    if (ccatomic_load_acquire(&thread->detached)) {
         /* Detached — we are responsible for cleanup.
          *
          * ccthread_detach() also checks `finished` after setting
@@ -139,9 +166,9 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg) {
 
     thread->func     = func;
     thread->arg      = arg;
-    CCTHREAD_ATOMIC_STORE(&thread->detached, 0);
-    CCTHREAD_ATOMIC_STORE(&thread->joined,   0);
-    CCTHREAD_ATOMIC_STORE(&thread->finished, 0);
+    ccatomic_store_release(&thread->detached, 0);
+    ccatomic_store_release(&thread->joined,   0);
+    ccatomic_store_release(&thread->finished, 0);
     thread->is_self  = 0;
     thread->result   = NULL;
 
@@ -182,8 +209,8 @@ ccthread_t* ccthread_create(ccthread_func_t func, void* arg) {
 /* ================================================================== */
 
 int ccthread_join(ccthread_t* thread, void** result) {
-    if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
-        CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
+    if (!thread || ccatomic_load_acquire(&thread->detached) ||
+        ccatomic_load_acquire(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
     }
 
@@ -206,14 +233,12 @@ int ccthread_join(ccthread_t* thread, void** result) {
         if (rc != 0) {
             return CCTHREAD_ERROR;
         }
-        thread->result = ret;
-        if (result) {
-            *result = ret;
-        }
+        if (result)
+            *result = thread->result;
     }
 #endif
 
-    CCTHREAD_ATOMIC_STORE(&thread->joined, 1);
+    ccatomic_store_release(&thread->joined, 1);
     free(thread);
     return CCTHREAD_SUCCESS;
 }
@@ -223,8 +248,8 @@ int ccthread_join(ccthread_t* thread, void** result) {
 /* ================================================================== */
 
 int ccthread_detach(ccthread_t* thread) {
-    if (!thread || CCTHREAD_ATOMIC_LOAD(&thread->detached) ||
-        CCTHREAD_ATOMIC_LOAD(&thread->joined) || thread->is_self) {
+    if (!thread || ccatomic_load_acquire(&thread->detached) ||
+        ccatomic_load_acquire(&thread->joined) || thread->is_self) {
         return CCTHREAD_ERROR;
     }
 
@@ -242,34 +267,19 @@ int ccthread_detach(ccthread_t* thread) {
     }
 #endif
 
-    CCTHREAD_ATOMIC_STORE(&thread->detached, 1);
+    ccatomic_store_release(&thread->detached, 1);
 
     /* If the wrapper has already exited, it missed the `detached` flag
      * and didn't free — we must free now.  Otherwise the wrapper will. */
-    if (CCTHREAD_ATOMIC_LOAD(&thread->finished)) {
+    if (ccatomic_load_acquire(&thread->finished)) {
         free(thread);
     }
 
     return CCTHREAD_SUCCESS;
 }
 
-/* ================================================================== */
-/*  ccthread_destroy                                                    */
-/* ================================================================== */
-
-void ccthread_destroy(ccthread_t* thread) {
-    if (!thread) {
-        return;
-    }
-
-#ifdef CCTHREAD_PLATFORM_WINDOWS
-    if (thread->handle) {
-        CloseHandle(thread->handle);
-    }
-#endif
-
-    free(thread);
-}
+/* ccthread_destroy removed — resources are reclaimed on process/thread exit.
+ * See ccthread_self() for TLS-cached handle lifecycle. */
 
 /* ================================================================== */
 /*  ccthread_exit                                                       */
@@ -317,17 +327,21 @@ void ccthread_sleep(unsigned int ms) {
 /* ================================================================== */
 
 ccthread_t* ccthread_self(void) {
-    ccthread_t* self;
+#ifdef CCTHREAD_TLS
+    ccthread_t* self = ccthread_self_ptr;
 
+    /* Cache hit — same pointer as create() returned or previous self() */
+    if (self) return self;
+
+    /* First call on this thread (e.g. main thread or unknown thread) —
+     * heap-allocate a new handle and cache it in TLS. */
     self = (ccthread_t*)calloc(1, sizeof(ccthread_t));
-    if (!self) {
-        return NULL;
-    }
+    if (!self) return NULL;
 
     self->is_self  = 1;
-    CCTHREAD_ATOMIC_STORE(&self->detached, 1);
-    CCTHREAD_ATOMIC_STORE(&self->joined,   1);
-    CCTHREAD_ATOMIC_STORE(&self->finished, 1);
+    ccatomic_store_release(&self->detached, 1);
+    ccatomic_store_release(&self->joined,   1);
+    ccatomic_store_release(&self->finished, 1);
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     {
@@ -345,7 +359,12 @@ ccthread_t* ccthread_self(void) {
     self->handle = pthread_self();
 #endif
 
+    ccthread_self_ptr = self;
     return self;
+#else  /* !CCTHREAD_TLS */
+    /* No TLS on this compiler — cannot provide per-thread caching. */
+    return NULL;
+#endif /* CCTHREAD_TLS */
 }
 
 /* ================================================================== */
@@ -479,6 +498,14 @@ int ccthread_set_name(ccthread_t* thread, const char* name) {
         pthread_t pt = thread ? thread->handle : pthread_self();
         pthread_set_name_np(pt, buf);   /* returns void */
         return CCTHREAD_SUCCESS;
+    }
+
+  #elif defined(__sun)
+    {
+        /* Solaris: pthread_setname_np takes 3 args (thread, name, arg) */
+        pthread_t pt = thread ? thread->handle : pthread_self();
+        return (pthread_setname_np(pt, buf, NULL) == 0)
+                   ? CCTHREAD_SUCCESS : CCTHREAD_ERROR;
     }
 
   #else

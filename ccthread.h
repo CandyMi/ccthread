@@ -1,5 +1,6 @@
 /**
  * @file        ccthread.h
+ * @author      candy <https://github.com/CandyMi/ccthread>
  * @brief       Cross-platform C/C++ thread library
  *
  * Single-header API for thread lifecycle management with zero external
@@ -17,7 +18,7 @@ extern "C" {
 #endif
 
 /* ------------------------------------------------------------------ */
-/*  Platform detection                                                 */
+
 /* ------------------------------------------------------------------ */
 #if defined(_WIN32) || defined(_WIN64)
   #define CCTHREAD_PLATFORM_WINDOWS 1   /**< Windows (MSVC / MinGW) */
@@ -29,7 +30,7 @@ extern "C" {
 /* ---- platform headers are internal to the implementation ---- */
 
 /* ------------------------------------------------------------------ */
-/*  Symbol export / import (MSVC / GCC visibility)                     */
+
 /* ------------------------------------------------------------------ */
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -47,7 +48,7 @@ extern "C" {
 #endif
 
 /* ------------------------------------------------------------------ */
-/*  Macros                                                             */
+
 /* ------------------------------------------------------------------ */
 
 /** @brief Operation completed successfully. */
@@ -60,8 +61,8 @@ extern "C" {
 #define CCTHREAD_NAME_MAX      16
 
 /* ------------------------------------------------------------------ */
-/*  @defgroup ccthread_types  Types                                    */
-/*  @{                                                                 */
+
+
 /* ------------------------------------------------------------------ */
 
 /**
@@ -86,11 +87,11 @@ typedef void* (*ccthread_func_t)(void* arg);
  */
 typedef struct ccthread_impl ccthread_t;
 
-/** @} */ /* end of ccthread_types */
+
 
 /* ------------------------------------------------------------------ */
-/*  @defgroup ccthread_lifecycle  Thread lifecycle                     */
-/*  @{                                                                 */
+
+
 /* ------------------------------------------------------------------ */
 
 /**
@@ -105,7 +106,6 @@ typedef struct ccthread_impl ccthread_t;
  *
  * @note The returned handle must be consumed by exactly one of
  *       ccthread_join() or ccthread_detach().
- * @note Do NOT call ccthread_destroy() on a handle returned by this function.
  */
 CCTHREAD_API ccthread_t* ccthread_create(ccthread_func_t func, void* arg);
 
@@ -143,25 +143,12 @@ CCTHREAD_API int ccthread_join(ccthread_t* thread, void** result);
  */
 CCTHREAD_API int ccthread_detach(ccthread_t* thread);
 
-/** @} */ /* end of ccthread_lifecycle */
+
 
 /* ------------------------------------------------------------------ */
-/*  @defgroup ccthread_control  Thread control                         */
-/*  @{                                                                 */
-/* ------------------------------------------------------------------ */
 
-/**
- * @brief Manually destroy a thread handle.
- *
- * @param[in]  thread  handle to free; NULL is a safe no-op
- *
- * @note Use this ONLY for handles returned by ccthread_self().
- *       Handles from ccthread_create() are auto-destroyed by
- *       ccthread_join() or ccthread_detach().
- * @warning Destroying a handle from ccthread_create() on a live
- *          joinable thread leaks the OS thread resource.
- */
-CCTHREAD_API void ccthread_destroy(ccthread_t* thread);
+
+/* ------------------------------------------------------------------ */
 
 /**
  * @brief Exit the calling thread immediately.
@@ -197,27 +184,32 @@ CCTHREAD_API void ccthread_yield(void);
  */
 CCTHREAD_API void ccthread_sleep(unsigned int ms);
 
-/** @} */ /* end of ccthread_control */
+
 
 /* ------------------------------------------------------------------ */
-/*  @defgroup ccthread_ident  Thread identification                    */
-/*  @{                                                                 */
+
+
 /* ------------------------------------------------------------------ */
 
 /**
  * @brief Get a handle representing the calling thread.
  *
- * The returned handle is a **new allocation** — you own it and must
- * call ccthread_destroy() to free it.
+ * Within the same thread every call returns the **same pointer** (TLS-cached).
+ * For threads created by ccthread_create(), this is the **exact same** heap
+ * handle returned to the creator — pointer identity holds across threads.
+ * For the main thread the first call heap-allocates a handle and caches it.
  *
- * @return     new handle referring to the current OS thread
- * @retval NULL memory allocation or platform call failed
+ * The handle is cached in TLS and reclaimed on thread/process exit —
+ * no explicit cleanup is needed.
+ *
+ * @return     handle referring to the current OS thread
+ * @retval NULL TLS or memory allocation failed (extremely rare)
  *
  * @note The handle can only be used for identification / comparison
  *       (ccthread_equal()) and naming (ccthread_set_name()).
  *       You cannot join or detach it.
  * @note Unlike pthread_self() which returns a value, this function
- *       heap-allocates — the caller is responsible for cleanup.
+ *       returns a pointer.
  */
 CCTHREAD_API ccthread_t* ccthread_self(void);
 
@@ -233,11 +225,11 @@ CCTHREAD_API ccthread_t* ccthread_self(void);
  */
 CCTHREAD_API int ccthread_equal(ccthread_t* a, ccthread_t* b);
 
-/** @} */ /* end of ccthread_ident */
+
 
 /* ------------------------------------------------------------------ */
-/*  @defgroup ccthread_naming  Thread naming (debug / profiling)       */
-/*  @{                                                                 */
+
+
 /* ------------------------------------------------------------------ */
 
 /**
@@ -266,7 +258,9 @@ CCTHREAD_API int ccthread_equal(ccthread_t* a, ccthread_t* b);
  */
 CCTHREAD_API int ccthread_set_name(ccthread_t* thread, const char* name);
 
-/** @} */ /* end of ccthread_naming */
+
+
+#include "ccmutex.h"
 
 #ifdef __cplusplus
 }
