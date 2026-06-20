@@ -22,12 +22,13 @@ Produces `libccthread.a` (static) + `libccthread.dylib`/`.so`/`.dll` (shared).
 | `ccmutex.h` | `ccspinlock.c` | Busy-wait spinlock (recursive/non-recursive) |
 | `ccmutex.h` | `ccrwlock.c` | Read-write lock (writer-preferring) |
 | `ccatomic.h` | _(header-only)_ | Cross-platform atomic macros |
+| `ccmutex.h` | `cccondvar.c` | Condition variable (wait/timedwait/signal/broadcast) |
 
 All symbols compile into a single `libccthread`. Each header is standalone — include only what you need.
 
 ## Code style
 
-- **C99** (`-std=c99 -pedantic -Wall -Wextra -Werror`). No C11 features, no GNU extensions.
+- **C99** (`-std=c99 -pedantic -Wall -Wextra -Werror`). No C11/GNU features in the public API surface; the platform adaptation layer (`ccatomic.h`, TLS selector) uses guard-conditioned `_Thread_local`, `__attribute__`, `__asm__`, `__builtin_*`, and compiler pragmas where the platform requires them.
 - **4-space indentation.** No tabs.
 - **Open brace on same line** for functions, control flow, structs.
 - **Single space after `if`/`for`/`while` before `(`.**
