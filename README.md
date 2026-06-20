@@ -19,7 +19,7 @@ spinlocks, and read-write locks — with zero external dependencies beyond the O
 
 | Header | Provides | Platform backends |
 |--------|----------|-------------------|
-| [`ccthread.h`](ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
+| [`ccthread.h`](ccthread.h) | Thread lifecycle, naming, sleep/yield, once | Win32 `CreateThread` / POSIX `pthread` |
 | [`ccsem.h`](ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
 | [`ccmutex.h`](ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
 | [`ccatomic.h`](ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
@@ -58,7 +58,8 @@ build/
  ```
 
 With examples enabled (`-DBUILD_EXAMPLES=ON`): `ccthread_basic`, `ccthread_detach`, `ccthread_naming`,
-`ccsem_producer_consumer`, `ccsem_timeout`, `ccmutex_basic`, `ccspinlock_basic`, `ccrwlock_basic`.
+`ccsem_producer_consumer`, `ccsem_timeout`, `ccmutex_basic`, `ccspinlock_basic`, `ccrwlock_basic`,
+`ccthread_once`.
 
 | CMake option | Default | Description |
 |--------------|---------|-------------|
@@ -144,6 +145,7 @@ void demo4(void) {
 | [`ccmutex_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccmutex_basic.c) | plain vs recursive mode |
 | [`ccspinlock_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccspinlock_basic.c) | shared counter with spinlock |
 | [`ccrwlock_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccrwlock_basic.c) | concurrent readers + exclusive writers |
+| [`ccthread_once.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccthread_once.c) | one-time init, concurrent callers, reset, NULL guards |
 
 ## Documentation
 

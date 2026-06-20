@@ -118,7 +118,7 @@ ccsem.h    (standalone — defines its own CCTHREAD_API + ccmutex_state_t guard)
 ccthread.h  (thread API — standalone, no extra includes)
   │
   └── ccthread.c  ───┬── ccatomic.h (once state machine)
-                      └── ccsem.h (ccthread_once used in ccsem_init)
+                     └── ccthread_once (atomic state machine, no extra deps)
 ```
 
 ## Design decisions

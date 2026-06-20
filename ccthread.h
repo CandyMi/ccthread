@@ -5,9 +5,6 @@
  *
  * Single-header API for thread lifecycle management with zero external
  * dependencies.  Supports Windows (Win32) and all POSIX systems (pthread).
- *
- * @see API.md  — complete function reference
- * @see DESIGN.md  — design rationale
  */
 
 #ifndef CCTHREAD_H
@@ -286,7 +283,7 @@ CCTHREAD_API int ccthread_set_name(ccthread_t* thread, const char* name);
 /* ------------------------------------------------------------------ */
 
 /**
- * @brief Once–control block for one-time initialisation.
+ * @brief Once-control block for one-time initialisation.
  *
  * Opaque integer; initialise with @c CCTHREAD_ONCE_INIT.
  *
@@ -324,7 +321,7 @@ typedef void (*ccthread_once_func_t)(void* arg);
  * Thread-safe.  Multiple concurrent calls serialise; only the first
  * caller executes @p func.  Subsequent calls return immediately.
  *
- * @param[in]  once  once\u2013control block (must not be NULL)
+ * @param[in]  once  once-control block (must not be NULL)
  * @param[in]  func  initialisation function (must not be NULL)
  * @param[in]  arg   forwarded to @p func
  * @return           CCTHREAD_SUCCESS on success
