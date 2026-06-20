@@ -15,20 +15,14 @@
 Cross-platform C/C++ concurrency primitives — threads, semaphores, mutexes,
 spinlocks, and read-write locks — with zero external dependencies beyond the OS.
 
-```c
-#include "ccthread.h"
-#include "ccsem.h"
-#include "ccmutex.h"
-```
-
 ## At a glance
 
 | Header | Provides | Platform backends |
 |--------|----------|-------------------|
-| [`ccthread.h`](ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
-| [`ccsem.h`](ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
-| [`ccmutex.h`](ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
-| [`ccatomic.h`](ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
+| [`ccthread.h`](https://github.com/CandyMi/ccthread/blob/master/ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
+| [`ccsem.h`](https://github.com/CandyMi/ccthread/blob/master/ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
+| [`ccmutex.h`](https://github.com/CandyMi/ccthread/blob/master/ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
+| [`ccatomic.h`](https://github.com/CandyMi/ccthread/blob/master/ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
 
 All headers:
 - `extern "C"` — drop into C or C++ projects  
@@ -142,14 +136,14 @@ void demo4(void) {
 
 | Example | Shows |
 |---------|-------|
-| [`ccthread_basic.c`](examples/ccthread_basic.c) | create / join / return values / self / equal |
-| [`ccthread_detach.c`](examples/ccthread_detach.c) | fire-and-forget detached threads |
-| [`ccthread_naming.c`](examples/ccthread_naming.c) | debug thread names |
-| [`ccsem_producer_consumer.c`](examples/ccsem_producer_consumer.c) | bounded-buffer with wait / post |
-| [`ccsem_timeout.c`](examples/ccsem_timeout.c) | trywait polling, timedwait deadline |
-| [`ccmutex_basic.c`](examples/ccmutex_basic.c) | plain vs recursive mode |
-| [`ccspinlock_basic.c`](examples/ccspinlock_basic.c) | shared counter with spinlock |
-| [`ccrwlock_basic.c`](examples/ccrwlock_basic.c) | concurrent readers + exclusive writers |
+| [`ccthread_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccthread_basic.c) | create / join / return values / self / equal |
+| [`ccthread_detach.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccthread_detach.c) | fire-and-forget detached threads |
+| [`ccthread_naming.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccthread_naming.c) | debug thread names |
+| [`ccsem_producer_consumer.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccsem_producer_consumer.c) | bounded-buffer with wait / post |
+| [`ccsem_timeout.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccsem_timeout.c) | trywait polling, timedwait deadline |
+| [`ccmutex_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccmutex_basic.c) | plain vs recursive mode |
+| [`ccspinlock_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccspinlock_basic.c) | shared counter with spinlock |
+| [`ccrwlock_basic.c`](https://github.com/CandyMi/ccthread/blob/master/examples/ccrwlock_basic.c) | concurrent readers + exclusive writers |
 
 ## Documentation
 
@@ -158,4 +152,4 @@ void demo4(void) {
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[MIT LICENSE](https://github.com/CandyMi/ccthread/blob/master/LICENSE).
