@@ -93,10 +93,10 @@ int main(void) {
         printf("main thread tid: %u\n", main_tid);
 
         ccthread_t* t = ccthread_create(tid_worker, NULL);
-        void* ret = NULL;
-        ccthread_join(t, &ret);
-        uint32_t child_tid = *(uint32_t*)ret;
-        free(ret);
+        void* child_ret = NULL;
+        ccthread_join(t, &child_ret);
+        uint32_t child_tid = *(uint32_t*)child_ret;
+        free(child_ret);
 
         printf("child thread tid:  %u\n", child_tid);
 
