@@ -31,7 +31,7 @@
   #include <unistd.h>             /* usleep / nanosleep */
   #include <time.h>               /* nanosleep, clock_gettime */
   #include <errno.h>
-  #if defined(__FreeBSD__) || defined(__OpenBSD__)
+  #if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
     #include <pthread_np.h>       /* pthread_set_name_np */
   #endif
   #ifdef __APPLE__
@@ -533,7 +533,7 @@ int ccthread_set_name(ccthread_t* thread, const char* name) {
                    ? CCTHREAD_SUCCESS : CCTHREAD_ERROR;
     }
 
-  #elif defined(__FreeBSD__) || defined(__OpenBSD__)
+  #elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
     {
         pthread_t pt = thread ? thread->handle : pthread_self();
         pthread_set_name_np(pt, buf);   /* returns void */
