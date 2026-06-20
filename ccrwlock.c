@@ -5,7 +5,7 @@
  *
  * Writer-preferring (writers are not starved by a stream of readers).
  *
- * Windows: SRWLOCK + manual writer_owner tracking via ccthread_self/equal.
+ * Windows: SRWLOCK + manual writer tracking via ccthread_gettid.
  *   unlock() auto-detects whether caller is the writer or a reader.
  *
  * POSIX:   pthread_rwlock_t (writer-preferring by default on glibc/macOS).
@@ -36,7 +36,7 @@
 struct ccrwlock_impl {
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     SRWLOCK          srw;
-    ccthread_t*      writer_owner; /* current writer, or NULL */
+    uint32_t         writer_tid;   /* current writer TID, or 0 */
 #else
     pthread_rwlock_t rwlock;
 #endif
@@ -56,7 +56,7 @@ ccrwlock_t* ccrwlock_create(void) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     InitializeSRWLock(&rw->srw);
-    /* writer_owner = NULL, reader_count = 0 from calloc */
+    /* writer_tid = 0, reader_count = 0 from calloc */
 #else
     {
         int rc = pthread_rwlock_init(&rw->rwlock, NULL);
@@ -121,7 +121,7 @@ ccmutex_state_t ccrwlock_wrlock(ccrwlock_t* rw) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     AcquireSRWLockExclusive(&rw->srw);
-    rw->writer_owner = ccthread_self();
+    rw->writer_tid = ccthread_gettid(NULL);
 #else
     {
         int rc = pthread_rwlock_wrlock(&rw->rwlock);
@@ -144,7 +144,7 @@ ccmutex_state_t ccrwlock_trywrlock(ccrwlock_t* rw) {
     if (!TryAcquireSRWLockExclusive(&rw->srw)) {
         return CCMUTEX_ERROR;
     }
-    rw->writer_owner = ccthread_self();
+    rw->writer_tid = ccthread_gettid(NULL);
     return CCMUTEX_SUCCESS;
 #else
     return (pthread_rwlock_trywrlock(&rw->rwlock) == 0)
@@ -166,8 +166,8 @@ ccmutex_state_t ccrwlock_unlock(ccrwlock_t* rw) {
      * writer_owner tracks the exclusive lock holder (NULL = no writer).
      * If caller is the writer → exclusive release; otherwise → shared release.
      * No reader_count needed — SRWLOCK tracks shared ownership internally. */
-    if (rw->writer_owner && ccthread_equal(rw->writer_owner, ccthread_self())) {
-        rw->writer_owner = NULL;
+    if (rw->writer_tid && rw->writer_tid == ccthread_gettid(NULL)) {
+        rw->writer_tid = 0;
         ReleaseSRWLockExclusive(&rw->srw);
     } else {
         ReleaseSRWLockShared(&rw->srw);

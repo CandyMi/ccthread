@@ -6,7 +6,7 @@
  * Acquire: ACQUIRE memory order via atomic_flag_test_and_set.
  * Release: RELEASE memory order via atomic_flag_clear.
  *
- * Recursive mode tracks owner via ccthread_self/equal.
+ * Recursive mode tracks owner via ccthread_gettid.
  * PLAIN mode ignores owner fields (calloc-zeroed, never set).
  */
 
@@ -19,7 +19,7 @@
 
 struct ccspinlock_impl {
     volatile long    flag;          /* 0 = free, 1 = locked */
-    ccthread_t*    owner;         /* current owner (recursive mode) */
+    uint32_t       owner_tid;     /* owner TID (recursive mode) */
     int            recursion;     /* re-entry depth */
 };
 
@@ -46,26 +46,19 @@ ccspinlock_t* ccspinlock_create(ccrecursion_t type) {
 /* ================================================================== */
 
 ccmutex_state_t ccspinlock_trylock(ccspinlock_t* spin) {
-    ccthread_t* self;
-
     if (!spin) {
         return CCMUTEX_ERROR;
     }
 
-    self = ccthread_self();
-    if (!self) {
-        return CCMUTEX_ERROR;
-    }
-
     /* Recursive path: same thread already holds the lock */
-    if (spin->owner && ccthread_equal(spin->owner, self)) {
+    if (spin->owner_tid && spin->owner_tid == ccthread_gettid(NULL)) {
         spin->recursion++;
         return CCMUTEX_SUCCESS;
     }
 
     /* Atomic acquire with ACQUIRE barrier */
     if (ccatomic_exchange_acquire(&spin->flag, 1) == 0) {
-        spin->owner     = self;
+        spin->owner_tid = ccthread_gettid(NULL);
         spin->recursion = 1;
         return CCMUTEX_SUCCESS;
     }
@@ -101,7 +94,7 @@ ccmutex_state_t ccspinlock_unlock(ccspinlock_t* spin) {
         return CCMUTEX_SUCCESS;
     }
 
-    spin->owner     = NULL;
+    spin->owner_tid = 0;
     spin->recursion = 0;
 
     /* RELEASE barrier before clearing flag */
