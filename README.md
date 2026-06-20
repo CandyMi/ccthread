@@ -38,7 +38,7 @@ All headers:
 ## Platforms
 
 | Feature | Windows (Vista+) | macOS | Linux / BSD | PowerPC / MIPS / LoongArch (QEMU) |
-|---------|-----------------|-------|-------------|
+|---------|-----------------|-------|-------------|-----------------------------------|
 | Threads | ✅ `CreateThread` | ✅ `pthread` | ✅ `pthread` | ✅ (via QEMU) |
 | Semaphore | ✅ `CreateSemaphore` | ✅ GCD | ✅ `pthread_mutex`+`condvar` | ✅ (via QEMU) |
 | Mutex (plain) | ✅ `SRWLOCK` | ✅ `pthread_mutex` | ✅ `pthread_mutex` | ✅ (via QEMU) |
