@@ -147,7 +147,7 @@
 
   #if defined(_M_AMD64) || defined(_M_IX86)
     #define ccatomic_pause()  _mm_pause()
-  #elif defined(_M_ARM64)
+  #elif defined(_M_ARM64) || defined(_M_ARM)
     #define ccatomic_pause()  __yield()
   #else
     #define ccatomic_pause()  ((void)0)

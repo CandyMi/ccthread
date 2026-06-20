@@ -78,6 +78,29 @@ if (!arg) return PREFIX_ERROR;                  // 1. NULL guard
 - `{ }` scope blocks keep platform-local variables contained.
 - macOS gets a separate branch only when it needs a different API (e.g. GCD for semaphores). `pthread_mutex` works on macOS — ccmutex/ccrwlock use `#else` directly.
 
+## MSVC architecture support
+
+| MSVC 宏 | 架构 | 字长 | 首个 MSVC 版本 | `_MSC_VER` | 最低 Windows | ccthread 状态 |
+|---------|------|------|---------------|-----------|-------------|:----------:|
+| `_M_IX86` | x86 (IA-32) | 32-bit | MSVC 1.0 (1993) | 800 | **Vista**¹ | ✅ `_mm_pause()` + `_InterlockedExchange` 全支持 |
+| `_M_AMD64` | x64 (AMD64) | 64-bit | **MSVC 2005** (VC8) | 1400 | **Vista**¹ | ✅ 同上 |
+| `_M_ARM` | ARM32 (AArch32) | 32-bit | **VS 2012–2019** (VC11–VC16) | 1700–1929 | Vista / WinRT | ✅ `__yield()` 已补全², VS 2022+ 已移除 |
+| `_M_ARM64` | ARM64 (AArch64) | 64-bit | **VS 2017 15.9** | 1916 | Windows 10 on ARM64 | ✅ `__yield()` |
+| `_M_ARM64EC` | ARM64EC³ | 64-bit | **VS 2022 17.2** | 1932 | Windows 11 on ARM64 | ✅ 继承 ARM64 |
+
+| 特性 | x86 | x64 | ARM32 | ARM64 |
+|------|:---:|:---:|:----:|:----:|
+| `_InterlockedExchange` | ✅ VC8+ | ✅ VC8+ | ✅ VS 2012+ | ✅ VS 2017+ |
+| `_InterlockedCompareExchange` | ✅ VC8+ | ✅ VC8+ | ✅ VS 2012+ | ✅ VS 2017+ |
+| `_mm_pause()` | ✅ VC8+ (SSE2) | ✅ VC8+ (SSE2) | ❌ N/A | ❌ N/A |
+| `__yield()` | ❌ N/A | ❌ N/A | ✅ VS 2012+ | ✅ VS 2017 15.9+ |
+| `__declspec(thread)` | ✅ VC6+ | ✅ VC6+ | ✅ VS 2012+ | ✅ VS 2017+ |
+| SRWLOCK / CONDITION_VARIABLE | ✅ Vista SDK | ✅ Vista SDK | ✅ WinRT SDK | ✅ Win10 SDK |
+
+> ¹ ccthread 内联定义了 `_WIN32_WINNT=0x0600`（Vista），所有架构的最低 Windows API 版本均为 Vista+。
+> ² `ccatomic_pause()` 的 MSVC ARM32 路径于 2025-06 补全，见 `ccatomic.h:150`。VS 2022+ 已移除 ARM32 交叉编译工具链，仅 VS 2012–2019 可用；ARM32 编译验证由 `cross-build.yml`（arm-linux-gnueabihf-gcc + QEMU）覆盖。
+> ³ ARM64EC 是 x86 兼容的 ARM64 ABI，允许 ARM64 原生进程中运行 x64 二进制。
+
 ## Critical constraints (gotchas)
 
 - **macOS GCD:** `dispatch_release()` hangs in pure C. `ccsem_destroy` on macOS skips it — the semaphore is reclaimed on process exit. Do NOT add `dispatch_release` back.

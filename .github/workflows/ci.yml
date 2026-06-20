@@ -258,3 +258,121 @@ jobs:
           #include "ccatomic.h"
           int main() { return 0; }
           PLAINTEXT
+
+  # ==================================================================
+  #  Windows — MSVC 32-bit (x86)
+  # ==================================================================
+  windows-x86:
+    name: Windows (MSVC x86)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+          -A Win32
+
+      - name: Build (C)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure -C ${{ env.BUILD_TYPE }}
+
+      # --- C++ compatibility: verified by Linux + macOS smoke tests ---
+
+  # ==================================================================
+  #  Windows — MSVC ARM64 (cross-compile only)
+  # ==================================================================
+  windows-arm64:
+    name: Windows (MSVC ARM64)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=OFF
+          -A ARM64
+
+      - name: Build (C)
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      # --- ARM64 binaries cannot run on x64 runners ---
+      # --- C++ compatibility: verified by x86/x64 jobs above ---
+
+  # ==================================================================
+  #  Windows — MinGW-w64 32-bit (i686)
+  # ==================================================================
+  mingw32:
+    name: Windows (MinGW i686)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          update: true
+          install: >-
+            mingw-w64-i686-cmake
+            mingw-w64-i686-gcc
+            make
+
+      - name: Configure (C)
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+          -DBUILD_EXAMPLES=ON
+          -DBUILD_TESTING=ON
+          -G "Unix Makefiles"
+
+      - name: Build (C)
+        run: cmake --build build --parallel
+
+      - name: Test (C)
+        run: ctest --test-dir build --output-on-failure
+
+      # --- C++ compilation check ---
+      - name: C++ smoke — compile+link as C++
+        run: |
+          g++ -std=c++11 -I. -lpthread -o /tmp/cxx_smoke \
+          -x c++ ccthread.c ccsem.c ccmutex.c ccspinlock.c ccrwlock.c \
+          -x c++ - <<'PLAINTEXT'
+          #include <stddef.h>
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() {
+              ccthread_t* t = ccthread_create(NULL, NULL);
+              ccsem_t* s = ccsem_create(0);
+              ccmutex_t* m = ccmutex_create(CCRECURSION_PLAIN);
+              (void)t; (void)s; (void)m;
+              return 0;
+          }
+          PLAINTEXT
+
+      - name: C++ smoke — header-only inclusion check
+        run: |
+          g++ -std=c++11 -I. -lpthread -o /tmp/cxx_include_check \
+          -x c++ - <<'PLAINTEXT'
+          #include "ccthread.h"
+          #include "ccsem.h"
+          #include "ccmutex.h"
+          #include "ccatomic.h"
+          int main() { return 0; }
+          PLAINTEXT
