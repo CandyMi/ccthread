@@ -90,12 +90,13 @@ CCTHREAD_API ccmutex_t*        ccmutex_create(ccrecursion_t type);
 /**
  * @brief Lock the mutex, blocking until acquired.
  *
+ * Repeatedly attempts @c trylock() and yields between attempts —
+ * efficient for short critical sections.  Yields rather than busy-
+ * spinning to reduce CPU contention on high-contention locks.
+ *
  * @param[in]  mtx  mutex handle
  * @return           CCMUTEX_SUCCESS on success
  * @retval CCMUTEX_ERROR  @p mtx is NULL
- *
- * @note Unlike a spinlock, this never busy-waits — the calling thread is
- *       suspended by the OS until the lock becomes available.
  */
 CCTHREAD_API ccmutex_state_t   ccmutex_lock(ccmutex_t* mtx);
 
@@ -335,7 +336,9 @@ CCTHREAD_API ccmutex_state_t  cccondvar_timedwait(cccondvar_t* cv, ccmutex_t* mt
  *
  * @param[in]  cv   condition variable handle
  * @return           CCMUTEX_SUCCESS on success
- * @retval CCMUTEX_ERROR  @p cv is NULL
+ * @retval CCMUTEX_ERROR  @p cv is NULL (or the platform API reported
+ *                         an error — POSIX only; Windows WakeCondition-
+ *                         Variable returns void and cannot fail)
  */
 CCTHREAD_API ccmutex_state_t  cccondvar_signal(cccondvar_t* cv);
 
@@ -346,7 +349,9 @@ CCTHREAD_API ccmutex_state_t  cccondvar_signal(cccondvar_t* cv);
  *
  * @param[in]  cv   condition variable handle
  * @return           CCMUTEX_SUCCESS on success
- * @retval CCMUTEX_ERROR  @p cv is NULL
+ * @retval CCMUTEX_ERROR  @p cv is NULL (or the platform API reported
+ *                         an error — POSIX only; Windows WakeAllCondition-
+ *                         Variable returns void and cannot fail)
  */
 CCTHREAD_API ccmutex_state_t  cccondvar_broadcast(cccondvar_t* cv);
 

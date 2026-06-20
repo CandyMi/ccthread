@@ -70,6 +70,12 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
     }
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
+    /* CreateSemaphoreW uses LONG (32-bit signed).  Clamp to LONG_MAX
+     * so values > 2^31-1 don't wrap negative through the (LONG) cast
+     * and cause silent failure.  The POSIX backend can handle
+     * the full unsigned int range. */
+    if (initial_count > LONG_MAX) initial_count = LONG_MAX;
+
     sem->handle = CreateSemaphoreW(
         NULL,                    /* default security */
         (LONG)initial_count,     /* initial count */
@@ -82,6 +88,10 @@ ccsem_t* ccsem_create(unsigned int initial_count) {
         return NULL;
     }
 #elif defined(__APPLE__)
+    /* dispatch_semaphore_create takes long (64-bit on modern macOS,
+     * 32-bit on older).  Clamp at LONG_MAX via its literal value to
+     * avoid silent truncation on 32-bit macOS. */
+    if ((unsigned long)initial_count > 2147483647U) initial_count = 2147483647U;
     sem->sem = dispatch_semaphore_create((long)initial_count);
     if (!sem->sem) {
         free(sem);

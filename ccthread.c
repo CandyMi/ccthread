@@ -311,8 +311,10 @@ int ccthread_detach(ccthread_t* thread) {
 /* ================================================================== */
 
 void ccthread_exit(void* result) {
+    if (ccthread_self_ptr) 
+        ccthread_self_ptr->result = result;
 #ifdef CCTHREAD_PLATFORM_WINDOWS
-    ExitThread((DWORD)(uintptr_t)result);
+    ExitThread((DWORD)0);
 #else
     pthread_exit(result);
 #endif

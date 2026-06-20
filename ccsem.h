@@ -87,7 +87,9 @@ CCTHREAD_API ccmutex_state_t  ccsem_wait(ccsem_t* sem);
  *
  * @param[in]  sem  semaphore handle
  * @return           CCMUTEX_SUCCESS on success
- * @retval CCMUTEX_ERROR  @p sem is NULL
+ * @retval CCMUTEX_ERROR  @p sem is NULL (or the platform API reported
+ *                         an error — only possible on Windows/POSIX;
+ *                         macOS dispatch_semaphore_signal cannot fail)
  */
 CCTHREAD_API ccmutex_state_t  ccsem_post(ccsem_t* sem);
 

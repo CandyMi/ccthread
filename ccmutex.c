@@ -39,6 +39,7 @@ struct ccmutex_impl {
         CRITICAL_SECTION cs;       /* RECURSIVE mode */
     } u;
 #else
+    int             recursive;     /* 0 = PLAIN, 1 = RECURSIVE */
     pthread_mutex_t mutex;         /* attr: DEFAULT or RECURSIVE */
 #endif
 };
@@ -64,7 +65,8 @@ ccmutex_t* ccmutex_create(ccrecursion_t type) {
 #else
     {
         int rc;
-        if (type != CCRECURSION_PLAIN) {
+        mtx->recursive = (type != CCRECURSION_PLAIN);
+        if (mtx->recursive) {
             pthread_mutexattr_t attr;
             pthread_mutexattr_init(&attr);
             pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -167,11 +169,7 @@ void ccmutex_destroy(ccmutex_t* mtx) {
 
 int ccmutex_is_recursive(const ccmutex_t* mtx) {
     if (!mtx) return 0;
-#ifdef CCTHREAD_PLATFORM_WINDOWS
     return mtx->recursive;
-#else
-    return 0;
-#endif
 }
 
 void* ccmutex_native_handle(ccmutex_t* mtx) {
