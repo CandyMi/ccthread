@@ -33,13 +33,13 @@ graph TB
 
 ## Concurrency primitives
 
-| Primitive | Backend (Windows) | Backend (macOS) | Backend (Linux / BSD) |
-|-----------|-------------------|-----------------|----------------------|
-| **Thread** (`ccthread`) | `CreateThread` | `pthread` | `pthread` |
-| **Semaphore** (`ccsem`) | `CreateSemaphore` | GCD `dispatch_semaphore` | `pthread_mutex` + `pthread_cond` |
-| **Mutex** (`ccmutex`) | `SRWLOCK` / `CRITICAL_SECTION` | `pthread_mutex` | `pthread_mutex` |
-| **Spinlock** (`ccspinlock`) | `InterlockedExchange` | `atomic_flag` / `__atomic` | `atomic_flag` / `__atomic` |
-| **RWLock** (`ccrwlock`) | `SRWLOCK` + owner tracking | `pthread_rwlock` | `pthread_rwlock` |
+| Primitive | Backend (Windows) | Backend (macOS) | Backend (Linux / BSD) | QEMU-tested archs |
+|-----------|-------------------|-----------------|----------------------|-------------------|
+| **Thread** (`ccthread`) | `CreateThread` | `pthread` | `pthread` | ARM32 / AArch64 / PowerPC64 / MIPS64 / LoongArch64 |
+| **Semaphore** (`ccsem`) | `CreateSemaphore` | GCD `dispatch_semaphore` | `pthread_mutex` + `pthread_cond` | ^^ |
+| **Mutex** (`ccmutex`) | `SRWLOCK` / `CRITICAL_SECTION` | `pthread_mutex` | `pthread_mutex` | ^^ |
+| **Spinlock** (`ccspinlock`) | `InterlockedExchange` | `atomic_flag` / `__atomic` | `atomic_flag` / `__atomic` | ^^ |
+| **RWLock** (`ccrwlock`) | `SRWLOCK` + owner tracking | `pthread_rwlock` | `pthread_rwlock` | ^^ |
 
 ## Ownership & lifecycle
 
@@ -113,7 +113,7 @@ ccsem.h    (standalone — defines its own CCTHREAD_API + ccmutex_state_t guard)
   └── ccsem.c  ───┬── ccthread.h
                   └── ccsem.h
 
-ccthread.h  (thread API + #include "ccmutex.h")
+ccthread.h  (thread API — standalone, no extra includes)
   │
   └── ccthread.c
 ```
@@ -125,3 +125,4 @@ ccthread.h  (thread API + #include "ccmutex.h")
 - **Static + shared.** Both `libccthread.a` and `libccthread.so` / `ccthread.dll` are produced from the same object code. PIC is enabled for the static library so it can be linked into shared libraries.
 - **Opaque structs.** All `typedef struct x_impl x_t` are defined in the `.c` files. Public headers only expose forward declarations.
 - **Return codes.** `CCMUTEX_SUCCESS` (0), `CCMUTEX_ERROR` (-1), `CCMUTEX_TIMEOUT` (-2 for semaphore). No `errno`.
+- **Thread ID.** `ccthread_gettid(NULL)` returns the calling thread's OS TID; `ccthread_gettid(thread)` reads the TID from a thread handle.

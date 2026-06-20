@@ -3,7 +3,7 @@
 [![Linux](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=linux&label=Linux&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=macos&label=macOS&logo=apple&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=windows&label=Windows&logo=windows&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
-[![Cross-build (PPC / MIPS / LoongArch)](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/cross-build.yml?branch=master&label=Cross-build&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/cross-build.yml)
+[![Cross-build (ARM / PPC / MIPS / LoongArch)](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/cross-build.yml?branch=master&label=Cross-build&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/cross-build.yml)
 
 [![Language](https://img.shields.io/badge/language-C%20%2F%20C%2B%2B-555?logo=c&logoColor=white)](.)
 [![Standard](https://img.shields.io/badge/standard-C99%20%2F%20C%2B%2B11-004080)](.)
@@ -78,6 +78,11 @@ cmake --build build
 ctest --test-dir build        # run all examples as tests
 cmake --install build --prefix /usr/local
 ```
+
+### Cross-architecture builds
+
+Compiled and tested via QEMU user-mode for ARM32 (HF), AArch64, PowerPC64 (LE),
+MIPS64 (BE), and LoongArch64.  See `.github/workflows/cross-build.yml`.
 
 ## Quick start
 
