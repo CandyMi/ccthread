@@ -15,6 +15,12 @@
 Cross-platform C/C++ concurrency primitives — threads, semaphores, mutexes,
 spinlocks, and read-write locks — with zero external dependencies beyond the OS.
 
+```c
+#include "ccthread.h"
+#include "ccsem.h"
+#include "ccmutex.h"
+```
+
 ## At a glance
 
 | Header | Provides | Platform backends |
@@ -152,4 +158,4 @@ void demo4(void) {
 
 ## License
 
-[MIT LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
