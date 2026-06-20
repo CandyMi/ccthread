@@ -281,8 +281,6 @@ CCTHREAD_API int ccthread_set_name(ccthread_t* thread, const char* name);
 
 
 
-#include "ccmutex.h"
-
 #ifdef __cplusplus
 }
 #endif

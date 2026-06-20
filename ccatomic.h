@@ -10,7 +10,7 @@
  * @par Compiler support matrix
  * | Compiler     | Store/load/exchange          | Pause                |
  * |--------------|------------------------------|----------------------|
- * | GCC / Clang  | `__atomic_store/load/exchange_n` | `__builtin_ia32_pause` / `yield` |
+ * | GCC / Clang  | `__atomic_store/load/exchange_n` | `__builtin_ia32_pause` / `yield` / `pause` / `or 1,1,1` |
  * | MSVC         | `_InterlockedExchange` / `_InterlockedCompareExchange` | `_mm_pause` / `__yield` |
  * | AIX XL C     | `__sync_lock_test_and_set` / `__sync_synchronize` | `((void)0)` |
  * | Solaris Studio | same as AIX                | `((void)0)` |
@@ -116,6 +116,13 @@
     #define ccatomic_pause()  __builtin_ia32_pause()
   #elif defined(__aarch64__) || defined(__arm__)
     #define ccatomic_pause()  __asm__ volatile("yield" ::: "memory")
+  #elif defined(__powerpc__) || defined(__PPC__)
+    /* or 1,1,1 = yield hint (ISA 2.06+, executes as nop on older PPC) */
+    #define ccatomic_pause()  __asm__ volatile("or 1,1,1" ::: "memory")
+  #elif defined(__loongarch__)
+    #define ccatomic_pause()  __asm__ volatile("pause" ::: "memory")
+  #elif defined(__mips__) && __mips_isa_rev >= 2
+    #define ccatomic_pause()  __asm__ volatile("pause" ::: "memory")
   #else
     #define ccatomic_pause()  ((void)0)
   #endif
