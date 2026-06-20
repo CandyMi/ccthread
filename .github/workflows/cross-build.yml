@@ -148,6 +148,13 @@ jobs:
             build/cc*.o examples/ccrwlock_basic.c -lpthread
           ${{ matrix.target.qemu }} ./build/test_rwlock
 
+      - name: Build and run — ccthread_once
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_once \
+            build/cc*.o examples/ccthread_once.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_once
+
       # --- C++ smoke tests (static link for QEMU compatibility) ---
       - name: C++ smoke — compile as C++
         if: steps.check_tc.outputs.ready == 'true'

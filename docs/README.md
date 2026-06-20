@@ -40,6 +40,7 @@ graph TB
 | **Mutex** (`ccmutex`) | `SRWLOCK` / `CRITICAL_SECTION` | `pthread_mutex` | `pthread_mutex` | ^^ |
 | **Spinlock** (`ccspinlock`) | `InterlockedExchange` | `atomic_flag` / `__atomic` | `atomic_flag` / `__atomic` | ^^ |
 | **RWLock** (`ccrwlock`) | `SRWLOCK` + owner tracking | `pthread_rwlock` | `pthread_rwlock` | ^^ |
+| **Once** (`ccthread_once`) | atomic state machine | atomic state machine | atomic state machine | ^^ |
 
 ## Ownership & lifecycle
 
@@ -76,6 +77,7 @@ graph LR
         E3[ccmutex_basic]
         E4[ccspinlock_basic]
         E5[ccrwlock_basic]
+        E6[ccthread_once]
     end
 
     CMake --> Output
@@ -115,7 +117,8 @@ ccsem.h    (standalone — defines its own CCTHREAD_API + ccmutex_state_t guard)
 
 ccthread.h  (thread API — standalone, no extra includes)
   │
-  └── ccthread.c
+  └── ccthread.c  ───┬── ccatomic.h (once state machine)
+                      └── ccsem.h (ccthread_once used in ccsem_init)
 ```
 
 ## Design decisions

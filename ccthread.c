@@ -46,6 +46,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ================================================================== */
+/*  Windows SetThreadDescription support (ccthread_once-guarded)      */
+/* ================================================================== */
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+  typedef HRESULT (WINAPI *ccthread_SetThreadDesc_fn)(HANDLE, PCWSTR);
+  static ccthread_SetThreadDesc_fn pSetThreadDesc = NULL;
+  static ccthread_once_t once_desc = CCTHREAD_ONCE_INIT;
+
+  static void init_pSetThreadDesc(void* arg) {
+      (void)arg;
+      HMODULE mod = GetModuleHandleW(L"kernel32.dll");
+      if (mod) {
+          FARPROC fp = GetProcAddress(mod, "SetThreadDescription");
+          if (fp) {
+              memcpy(&pSetThreadDesc, &fp, sizeof pSetThreadDesc);
+          }
+      }
+  }
+#endif
+
 /* ---- opaque struct definition ---- */
 
 struct ccthread_impl {
@@ -423,6 +443,40 @@ uint32_t ccthread_gettid(const ccthread_t* thread) {
 }
 
 /* ================================================================== */
+/*  ccthread_once                                                        */
+/* ================================================================== */
+
+int ccthread_once(ccthread_once_t* once, ccthread_once_func_t func, void* arg) {
+    int prev;
+
+    if (!once || !func) {
+        return CCTHREAD_ERROR;
+    }
+
+    while (ccatomic_load_acquire(once) < 2) {
+        prev = ccatomic_exchange_acquire(once, 1);
+
+        /* exchange(1) clobbered the done flag — restore it */
+        if (prev == 2) {
+            ccatomic_store_release(once, 2);
+            break;
+        }
+
+        /* someone else is running — retry */
+        if (prev != 0) {
+            ccatomic_pause();
+            continue;
+        }
+
+        /* we won the race — run init and mark done */
+        func(arg);
+        ccatomic_store_release(once, 2);
+    }
+
+    return CCTHREAD_SUCCESS;
+}
+
+/* ================================================================== */
 /*  ccthread_set_name                                                   */
 /* ================================================================== */
 
@@ -444,44 +498,34 @@ int ccthread_set_name(ccthread_t* thread, const char* name) {
 
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     {
-        /* SetThreadDescription is available on Windows 10 1607+.
-         * Dynamically resolve it so the library works on older Windows. */
-        typedef HRESULT (WINAPI *SetThreadDesc_fn)(HANDLE, PCWSTR);
-        static SetThreadDesc_fn pSetThreadDesc = NULL;
         HANDLE hThread;
         int    wlen;
         WCHAR* wname;
 
+        /* Dynamically load SetThreadDescription exactly once */
+        ccthread_once(&once_desc, init_pSetThreadDesc, NULL);
+
         if (!pSetThreadDesc) {
-            HMODULE mod = GetModuleHandleW(L"kernel32.dll");
-            if (mod) {
-                {
-                    FARPROC fp = GetProcAddress(mod, "SetThreadDescription");
-                    memcpy(&pSetThreadDesc, &fp, sizeof pSetThreadDesc);
-                }
-            }
-            if (!pSetThreadDesc) {
-                /* SetThreadDescription unavailable — pre-Win10.
-                 * Fall back to the MSVC debugger exception convention
-                 * (0x406D1388).  Visual Studio and WinDbg recognise this
-                 * as a thread-name notification and silently consume it.
-                 * Only compiled under _MSC_VER (SEH __try/__except). */
+            /* SetThreadDescription unavailable — pre-Win10.
+             * Fall back to the MSVC debugger exception convention
+             * (0x406D1388).  Visual Studio and WinDbg recognise this
+             * as a thread-name notification and silently consume it.
+             * Only compiled under _MSC_VER (SEH __try/__except). */
 #ifdef _MSC_VER
-                {
-                    ULONG_PTR args[4];
-                    args[0] = 0x1000;                    /* dwType */
-                    args[1] = (ULONG_PTR)(LPCSTR)buf;    /* szName */
-                    args[2] = (thread ? thread->tid : ccthread_gettid(NULL)); /* dwThreadID */
-                    args[3] = 0;                         /* dwFlags */
-                    __try {
-                        RaiseException(0x406D1388, 0, 4, args);
-                    } __except(EXCEPTION_EXECUTE_HANDLER) {}
-                }
-                return CCTHREAD_SUCCESS;
-#else
-                return CCTHREAD_ERROR;
-#endif
+            {
+                ULONG_PTR args[4];
+                args[0] = 0x1000;                    /* dwType */
+                args[1] = (ULONG_PTR)(LPCSTR)buf;    /* szName */
+                args[2] = (thread ? thread->tid : ccthread_gettid(NULL)); /* dwThreadID */
+                args[3] = 0;                         /* dwFlags */
+                __try {
+                    RaiseException(0x406D1388, 0, 4, args);
+                } __except(EXCEPTION_EXECUTE_HANDLER) {}
             }
+            return CCTHREAD_SUCCESS;
+#else
+            return CCTHREAD_ERROR;
+#endif
         }
 
         if (thread && thread->handle) {

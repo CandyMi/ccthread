@@ -312,7 +312,7 @@ void ccsem_destroy(ccsem_t* sem) {
         CloseHandle(sem->handle);
     }
 #elif defined(__APPLE__)
-    (void)sem->sem;
+    dispatch_release(sem->sem);
 #else
     pthread_mutex_destroy(&sem->mutex);
     pthread_cond_destroy(&sem->cond);

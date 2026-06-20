@@ -280,6 +280,59 @@ CCTHREAD_API uint32_t ccthread_gettid(const ccthread_t* thread);
 CCTHREAD_API int ccthread_set_name(ccthread_t* thread, const char* name);
 
 
+/* ------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Once–control block for one-time initialisation.
+ *
+ * Opaque integer; initialise with @c CCTHREAD_ONCE_INIT.
+ *
+ * @code
+ * static ccthread_once_t once = CCTHREAD_ONCE_INIT;
+ * static void init(void* arg) { (void)arg; }
+ * int main(void) {
+ *     ccthread_once(&once, init, NULL);
+ * }
+ * @endcode
+ *
+ * @par Internal state machine
+ * Three-state atomic machine: 0=not-done, 1=in-progress, 2=done.
+ * The first caller enters 0\u21921, executes @p func, then stores 2.
+ * Concurrent callers spin-wait on 1 until released.
+ *
+ * @note Calling @c ccthread_once on the same @p once from within @p func
+ *       is undefined behaviour (self-deadlock).
+ */
+typedef int ccthread_once_t;
+
+/** @brief Static initialiser for @c ccthread_once_t. */
+#define CCTHREAD_ONCE_INIT 0
+
+/**
+ * @brief Callback signature for @c ccthread_once.
+ *
+ * @param[in]  arg  user argument forwarded from ccthread_once()
+ */
+typedef void (*ccthread_once_func_t)(void* arg);
+
+/**
+ * @brief Execute @p func(@p arg) exactly once across all threads.
+ *
+ * Thread-safe.  Multiple concurrent calls serialise; only the first
+ * caller executes @p func.  Subsequent calls return immediately.
+ *
+ * @param[in]  once  once\u2013control block (must not be NULL)
+ * @param[in]  func  initialisation function (must not be NULL)
+ * @param[in]  arg   forwarded to @p func
+ * @return           CCTHREAD_SUCCESS on success
+ * @retval CCTHREAD_ERROR  @p once or @p func is NULL
+ */
+CCTHREAD_API int ccthread_once(ccthread_once_t* once,
+                                ccthread_once_func_t func,
+                                void* arg);
 
 #ifdef __cplusplus
 }
