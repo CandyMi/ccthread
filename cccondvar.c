@@ -66,7 +66,17 @@ cccondvar_t* cccondvar_create(void) {
     InitializeConditionVariable(&cv->cv);
 #else
     {
-        int rc = pthread_cond_init(&cv->cond, NULL);
+        int rc;
+        pthread_condattr_t attr;
+        pthread_condattr_init(&attr);
+#ifndef __APPLE__
+        /* Set monotonic clock so timedwait is immune to system clock changes.
+         * macOS condattr does not support CLOCK_MONOTONIC; macOS uses
+         * pthread_cond_timedwait_relative_np instead (see timedwait). */
+        pthread_condattr_setclock(&attr, CCCONDVAR_CLOCK_ID);
+#endif
+        rc = pthread_cond_init(&cv->cond, &attr);
+        pthread_condattr_destroy(&attr);
         if (rc != 0) {
             free(cv);
             return NULL;
@@ -131,23 +141,35 @@ ccmutex_state_t cccondvar_timedwait(cccondvar_t* cv, ccmutex_t* mtx,
     }
 #else
     {
-        struct timespec ts;
         int rc;
 
 #ifdef __APPLE__
-        clock_gettime(CLOCK_REALTIME, &ts);
-#else
-        clock_gettime(CCCONDVAR_CLOCK_ID, &ts);
-#endif
-        ts.tv_sec  += (time_t)(timeout_ms / 1000);
-        ts.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
-        if (ts.tv_nsec >= 1000000000L) {
-            ts.tv_sec++;
-            ts.tv_nsec -= 1000000000L;
+        /* macOS: pthread_cond_timedwait_relative_np takes a relative
+         * timeout — no clock dependency, immune to wall-clock changes.
+         * Available since macOS 10.6, never deprecated. */
+        {
+            struct timespec ts;
+            ts.tv_sec  = (time_t)(timeout_ms / 1000);
+            ts.tv_nsec = (long)(timeout_ms % 1000) * 1000000L;
+            rc = pthread_cond_timedwait_relative_np(&cv->cond,
+                    (pthread_mutex_t*)ccmutex_native_handle(mtx), &ts);
         }
-
-        rc = pthread_cond_timedwait(&cv->cond,
-                 (pthread_mutex_t*)ccmutex_native_handle(mtx), &ts);
+#else
+        /* Linux/BSD: condattr was set to CCCONDVAR_CLOCK_ID (MONOTONIC)
+         * in cccondvar_create — compute absolute time from it. */
+        {
+            struct timespec ts;
+            clock_gettime(CCCONDVAR_CLOCK_ID, &ts);
+            ts.tv_sec  += (time_t)(timeout_ms / 1000);
+            ts.tv_nsec += (long)(timeout_ms % 1000) * 1000000L;
+            if (ts.tv_nsec >= 1000000000L) {
+                ts.tv_sec++;
+                ts.tv_nsec -= 1000000000L;
+            }
+            rc = pthread_cond_timedwait(&cv->cond,
+                    (pthread_mutex_t*)ccmutex_native_handle(mtx), &ts);
+        }
+#endif
         if (rc == 0)         return CCMUTEX_SUCCESS;
         if (rc == ETIMEDOUT) return CCMUTEX_TIMEOUT;
         return CCMUTEX_ERROR;
