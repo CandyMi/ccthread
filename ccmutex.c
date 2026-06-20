@@ -160,3 +160,28 @@ void ccmutex_destroy(ccmutex_t* mtx) {
 
     free(mtx);
 }
+
+/* ================================================================== */
+/*  ccmutex_is_recursive / ccmutex_native_handle (for cccondvar)       */
+/* ================================================================== */
+
+int ccmutex_is_recursive(const ccmutex_t* mtx) {
+    if (!mtx) return 0;
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+    return mtx->recursive;
+#else
+    return 0;
+#endif
+}
+
+void* ccmutex_native_handle(ccmutex_t* mtx) {
+    if (!mtx) return NULL;
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+    if (mtx->recursive)
+        return (void*)&mtx->u.cs;
+    else
+        return (void*)&mtx->u.srw;
+#else
+    return (void*)&mtx->mutex;
+#endif
+}

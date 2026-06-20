@@ -62,11 +62,63 @@ typedef struct ccsem_impl ccsem_t;
 /*  API                                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * @brief Create a counting semaphore.
+ *
+ * @param[in]  initial_count  initial semaphore value (>= 0)
+ * @return                    new handle on success
+ * @retval NULL               allocation or platform init failed
+ */
 CCTHREAD_API ccsem_t*         ccsem_create(unsigned int initial_count);
+
+/**
+ * @brief Decrement the semaphore, blocking until > 0.
+ *
+ * @param[in]  sem  semaphore handle
+ * @return           CCMUTEX_SUCCESS on success
+ * @retval CCMUTEX_ERROR  @p sem is NULL
+ */
 CCTHREAD_API ccmutex_state_t  ccsem_wait(ccsem_t* sem);
+
+/**
+ * @brief Increment (signal) the semaphore.
+ *
+ * Wakes one waiting thread, if any.
+ *
+ * @param[in]  sem  semaphore handle
+ * @return           CCMUTEX_SUCCESS on success
+ * @retval CCMUTEX_ERROR  @p sem is NULL
+ */
 CCTHREAD_API ccmutex_state_t  ccsem_post(ccsem_t* sem);
+
+/**
+ * @brief Try to decrement without blocking.
+ *
+ * @param[in]  sem  semaphore handle
+ * @return           CCMUTEX_SUCCESS if the count was > 0
+ * @retval CCMUTEX_TIMEOUT  count was 0
+ * @retval CCMUTEX_ERROR    @p sem is NULL
+ */
 CCTHREAD_API ccmutex_state_t  ccsem_trywait(ccsem_t* sem);
+
+/**
+ * @brief Decrement the semaphore with a timeout.
+ *
+ * @param[in]  sem         semaphore handle
+ * @param[in]  timeout_ms  timeout in milliseconds
+ * @return                  CCMUTEX_SUCCESS if decremented before timeout
+ * @retval CCMUTEX_TIMEOUT  count was 0 for the entire timeout
+ * @retval CCMUTEX_ERROR    @p sem is NULL
+ */
 CCTHREAD_API ccmutex_state_t  ccsem_timedwait(ccsem_t* sem, unsigned int timeout_ms);
+
+/**
+ * @brief Destroy a semaphore and free its memory.
+ *
+ * @param[in]  sem  semaphore handle, or NULL (safe no-op)
+ *
+ * @post The handle is invalid — do not use it after this call.
+ */
 CCTHREAD_API void             ccsem_destroy(ccsem_t* sem);
 
 #ifdef __cplusplus

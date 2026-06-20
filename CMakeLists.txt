@@ -62,6 +62,7 @@ set(CCTHREAD_SOURCES
     ccmutex.c     ccmutex.h
     ccspinlock.c
     ccrwlock.c
+    cccondvar.c
     ccatomic.h
 )
 
@@ -143,6 +144,7 @@ if(BUILD_EXAMPLES)
     add_ccthread_example(ccspinlock_basic)
     add_ccthread_example(ccrwlock_basic)
     add_ccthread_example(ccthread_once)
+    add_ccthread_example(cccondvar_basic)
 
     if(BUILD_TESTING)
         enable_testing()
@@ -155,6 +157,7 @@ if(BUILD_EXAMPLES)
         add_test(NAME ccspinlock_basic    COMMAND ccspinlock_basic)
         add_test(NAME ccrwlock_basic      COMMAND ccrwlock_basic)
         add_test(NAME ccthread_once       COMMAND ccthread_once)
+        add_test(NAME cccondvar_basic     COMMAND cccondvar_basic)
     endif()
 endif()
 

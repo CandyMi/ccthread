@@ -297,7 +297,7 @@ CCTHREAD_API int ccthread_set_name(ccthread_t* thread, const char* name);
  *
  * @par Internal state machine
  * Three-state atomic machine: 0=not-done, 1=in-progress, 2=done.
- * The first caller enters 0\u21921, executes @p func, then stores 2.
+ * The first caller enters 0 -> 1, executes @p func, then stores 2.
  * Concurrent callers spin-wait on 1 until released.
  *
  * @note Calling @c ccthread_once on the same @p once from within @p func
