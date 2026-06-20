@@ -88,6 +88,30 @@ jobs:
           PLAINTEXT
 
   # ==================================================================
+  #  CentOS 7 — GCC 4.8.5 (legacy platform, __sync_* atomics)
+  # ==================================================================
+  centos7:
+    name: CentOS 7
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test in CentOS 7 container
+        run: |
+          docker run --rm -v $PWD:/workspace -w /workspace centos:7 \
+            sh -c "
+              sed -i 's|mirror.centos.org|vault.centos.org|g' /etc/yum.repos.d/*.repo &&
+              sed -i 's|^#baseurl|baseurl|' /etc/yum.repos.d/*.repo &&
+              sed -i 's|^mirrorlist=|#mirrorlist=|' /etc/yum.repos.d/*.repo &&
+              yum install -y -q epel-release &&
+              yum install -y -q cmake3 gcc gcc-c++ make &&
+              cmake3 -B build -DBUILD_EXAMPLES=ON -DBUILD_TESTING=ON &&
+              cmake3 --build build --parallel -- VERBOSE=1 &&
+              cd build && ctest3 --output-on-failure
+            "
+
+  # ==================================================================
   #  macOS — AppleClang
   # ==================================================================
   macos:

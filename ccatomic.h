@@ -30,8 +30,14 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 
-  #define ccatomic_store_release(p, v) \
-      __atomic_store_n((p), (v), __ATOMIC_RELEASE)
+  #ifdef __ATOMIC_RELEASE
+    #define ccatomic_store_release(p, v) \
+        __atomic_store_n((p), (v), __ATOMIC_RELEASE)
+  #else
+    /* __sync_synchronize is a full barrier; store + barrier = release store */
+    #define ccatomic_store_release(p, v) \
+        do { *(p) = (v); __sync_synchronize(); } while(0)
+  #endif
 
 #elif defined(_MSC_VER)
 
@@ -58,8 +64,13 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 
-  #define ccatomic_load_acquire(p) \
-      __atomic_load_n((p), __ATOMIC_ACQUIRE)
+  #ifdef __ATOMIC_RELEASE
+    #define ccatomic_load_acquire(p) \
+        __atomic_load_n((p), __ATOMIC_ACQUIRE)
+  #else
+    #define ccatomic_load_acquire(p) \
+        (__sync_synchronize(), *(p))
+  #endif
 
 #elif defined(_MSC_VER)
 
@@ -85,8 +96,13 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 
-  #define ccatomic_exchange_acquire(p, v) \
-      __atomic_exchange_n((p), (v), __ATOMIC_ACQUIRE)
+  #ifdef __ATOMIC_RELEASE
+    #define ccatomic_exchange_acquire(p, v) \
+        __atomic_exchange_n((p), (v), __ATOMIC_ACQUIRE)
+  #else
+    #define ccatomic_exchange_acquire(p, v) \
+        __sync_lock_test_and_set((p), (v))
+  #endif
 
 #elif defined(_MSC_VER)
 
