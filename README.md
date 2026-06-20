@@ -7,7 +7,7 @@
 
 [![Language](https://img.shields.io/badge/language-C%20%2F%20C%2B%2B-555?logo=c&logoColor=white)](.)
 [![Standard](https://img.shields.io/badge/standard-C99%20%2F%20C%2B%2B11-004080)](.)
-[![Docs](https://img.shields.io/badge/docs-architecture-blue?logo=readthedocs&logoColor=white)](https://github.com/CandyMi/ccthread/blob/master/docs/README.md)
+[![Docs](https://img.shields.io/badge/docs-architecture-blue?logo=readthedocs&logoColor=white)](docs/README.md)
 
 [![Model](https://img.shields.io/badge/model-Thread%20%2F%20Semaphore%20%2F%20Lock-7b2d8e)](.)
 [![Use Cases](https://img.shields.io/badge/use%20cases-Embedded%20%2F%20Systems%20%2F%20Games-2a9d46)](.)
@@ -19,10 +19,10 @@ spinlocks, and read-write locks — with zero external dependencies beyond the O
 
 | Header | Provides | Platform backends |
 |--------|----------|-------------------|
-| [`ccthread.h`](https://github.com/CandyMi/ccthread/blob/master/ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
-| [`ccsem.h`](https://github.com/CandyMi/ccthread/blob/master/ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
-| [`ccmutex.h`](https://github.com/CandyMi/ccthread/blob/master/ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
-| [`ccatomic.h`](https://github.com/CandyMi/ccthread/blob/master/ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
+| [`ccthread.h`](ccthread.h) | Thread lifecycle, naming, sleep/yield | Win32 `CreateThread` / POSIX `pthread` |
+| [`ccsem.h`](ccsem.h) | Counting semaphore (blocking / try / timed) | Win32 `CreateSemaphore` / macOS GCD / POSIX `pthread_mutex`+`cond` |
+| [`ccmutex.h`](ccmutex.h) | Mutex, spinlock, read-write lock | `SRWLOCK` / `CRITICAL_SECTION` / `pthread_mutex` / `atomic_flag` / `pthread_rwlock` |
+| [`ccatomic.h`](ccatomic.h) | Atomic load/store/release (header-only) | `__atomic` builtins / MSVC `_InterlockedExchange` / GCC `__sync` |
 
 All headers:
 - `extern "C"` — drop into C or C++ projects  
