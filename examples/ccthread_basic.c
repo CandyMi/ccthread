@@ -25,6 +25,14 @@ static void* print_worker(void* arg) {
     return NULL;
 }
 
+/* ---- A worker that returns its OS thread ID ---- */
+static void* tid_worker(void* arg) {
+    (void)arg;
+    uint32_t* ret = (uint32_t*)malloc(sizeof(uint32_t));
+    *ret = ccthread_gettid(NULL);
+    return ret;
+}
+
 int main(void) {
     /* ----------------------------------------------------------- */
     /*  1. Create and join a single thread                         */
@@ -84,18 +92,29 @@ int main(void) {
         uint32_t main_tid = ccthread_gettid(NULL);
         printf("main thread tid: %u\n", main_tid);
 
-        ccthread_t* t = ccthread_create(print_worker, "gettid-test");
-        uint32_t child_tid = ccthread_gettid(t);
-        printf("child thread tid: %u\n", child_tid);
-        ccthread_join(t, NULL);
+        ccthread_t* t = ccthread_create(tid_worker, NULL);
+        void* ret = NULL;
+        ccthread_join(t, &ret);
+        uint32_t child_tid = *(uint32_t*)ret;
+        free(ret);
 
-        /* main_tid and child_tid must differ */
+        printf("child thread tid:  %u\n", child_tid);
+
+        /* main_tid and child_tid must differ, both non-zero */
         if (main_tid == child_tid || main_tid == 0 || child_tid == 0) {
             fprintf(stderr, "ERROR: unexpected TIDs (%u, %u)\n",
                     (unsigned)main_tid, (unsigned)child_tid);
             return 1;
         }
         printf("  tid check: ok\n");
+
+        /* Also test gettid(NULL) on main thread after the child has joined */
+        uint32_t after = ccthread_gettid(NULL);
+        if (after != main_tid) {
+            fprintf(stderr, "ERROR: main TID changed (%u vs %u)\n",
+                    (unsigned)main_tid, (unsigned)after);
+            return 1;
+        }
     }
 
     /* ----------------------------------------------------------- */
