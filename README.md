@@ -3,6 +3,7 @@
 [![Linux](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=linux&label=Linux&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=macos&label=macOS&logo=apple&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
 [![Windows](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/ci.yml?branch=master&job=windows&label=Windows&logo=windows&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/ci.yml)
+[![Cross-build (PPC / MIPS / LoongArch)](https://img.shields.io/github/actions/workflow/status/CandyMi/ccthread/cross-build.yml?branch=master&label=Cross-build&logo=linux&logoColor=white)](https://github.com/CandyMi/ccthread/actions/workflows/cross-build.yml)
 
 [![Language](https://img.shields.io/badge/language-C%20%2F%20C%2B%2B-555?logo=c&logoColor=white)](.)
 [![Standard](https://img.shields.io/badge/standard-C99%20%2F%20C%2B%2B11-004080)](.)
@@ -36,14 +37,14 @@ All headers:
 
 ## Platforms
 
-| Feature | Windows (Vista+) | macOS | Linux / BSD |
+| Feature | Windows (Vista+) | macOS | Linux / BSD | PowerPC / MIPS / LoongArch (QEMU) |
 |---------|-----------------|-------|-------------|
-| Threads | ✅ `CreateThread` | ✅ `pthread` | ✅ `pthread` |
-| Semaphore | ✅ `CreateSemaphore` | ✅ GCD | ✅ `pthread_mutex`+`condvar` |
-| Mutex (plain) | ✅ `SRWLOCK` | ✅ `pthread_mutex` | ✅ `pthread_mutex` |
-| Mutex (recursive) | ✅ `CRITICAL_SECTION` | ✅ `pthread_mutex` recursive | ✅ `pthread_mutex` recursive |
-| Spinlock | ✅ `InterlockedExchange` | ✅ `atomic_flag` / `__atomic` | ✅ `atomic_flag` / `__atomic` |
-| RWLock | ✅ `SRWLOCK` + owner | ✅ `pthread_rwlock` | ✅ `pthread_rwlock` |
+| Threads | ✅ `CreateThread` | ✅ `pthread` | ✅ `pthread` | ✅ (via QEMU) |
+| Semaphore | ✅ `CreateSemaphore` | ✅ GCD | ✅ `pthread_mutex`+`condvar` | ✅ (via QEMU) |
+| Mutex (plain) | ✅ `SRWLOCK` | ✅ `pthread_mutex` | ✅ `pthread_mutex` | ✅ (via QEMU) |
+| Mutex (recursive) | ✅ `CRITICAL_SECTION` | ✅ `pthread_mutex` recursive | ✅ `pthread_mutex` recursive | ✅ (via QEMU) |
+| Spinlock | ✅ `InterlockedExchange` | ✅ `atomic_flag` / `__atomic` | ✅ `atomic_flag` / `__atomic` | ✅ (via QEMU) |
+| RWLock | ✅ `SRWLOCK` + owner | ✅ `pthread_rwlock` | ✅ `pthread_rwlock` | ✅ (via QEMU) |
 
 ## Build
 

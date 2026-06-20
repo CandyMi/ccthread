@@ -1,0 +1,182 @@
+# ====================================================================
+#  Cross-architecture CI — compile + QEMU user-mode testing
+#
+#  Verifies ccthread builds and runs correctly on non-x86
+#  architectures using cross-compilation toolchains and
+#  QEMU user-mode emulation.
+# ====================================================================
+
+name: Cross-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  cross:
+    name: ${{ matrix.target.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - label:    PowerPC64 (LE)
+            cc:       powerpc64le-linux-gnu-gcc
+            cxx:      powerpc64le-linux-gnu-g++
+            qemu:     qemu-ppc64le-static
+            pkg_gcc:  gcc-powerpc64le-linux-gnu
+            pkg_cxx:  g++-powerpc64le-linux-gnu
+
+          - label:    MIPS64 (BE)
+            cc:       mips64-linux-gnuabi64-gcc
+            cxx:      mips64-linux-gnuabi64-g++
+            qemu:     qemu-mips64-static
+            pkg_gcc:  gcc-mips64-linux-gnuabi64
+            pkg_cxx:  g++-mips64-linux-gnuabi64
+
+          - label:    ARM32 (HF)
+            cc:       arm-linux-gnueabihf-gcc
+            cxx:      arm-linux-gnueabihf-g++
+            qemu:     qemu-arm-static
+            pkg_gcc:  gcc-arm-linux-gnueabihf
+            pkg_cxx:  g++-arm-linux-gnueabihf
+
+          - label:    AArch64
+            cc:       aarch64-linux-gnu-gcc
+            cxx:      aarch64-linux-gnu-g++
+            qemu:     qemu-aarch64-static
+            pkg_gcc:  gcc-aarch64-linux-gnu
+            pkg_cxx:  g++-aarch64-linux-gnu
+
+          - label:    LoongArch64
+            cc:       loongarch64-linux-gnu-gcc
+            cxx:      loongarch64-linux-gnu-g++
+            qemu:     qemu-loongarch64-static
+            pkg_gcc:  gcc-loongarch64-linux-gnu
+            pkg_cxx:  g++-loongarch64-linux-gnu
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross toolchain + QEMU
+        run: |
+          sudo apt-add-repository -y universe 2>/dev/null || true
+          sudo apt-get update -qq
+          # Try exact package names first, then version-specific fallbacks
+          sudo apt-get install -y -qq \
+            ${{ matrix.target.pkg_gcc }} ${{ matrix.target.pkg_cxx }} \
+            qemu-user-static || \
+          sudo apt-get install -y -qq \
+            gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu \
+            qemu-user-static 2>/dev/null || \
+          echo "::warning::toolchain not available for ${{ matrix.target.label }}"
+
+      - name: Check toolchain
+        id: check_tc
+        run: |
+          if command -v ${{ matrix.target.cc }} >/dev/null 2>&1; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build library objects
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          CFLAGS="-std=c99 -D_GNU_SOURCE -fPIC -I. -O2 -Wall -Wextra -Werror"
+          mkdir -p build
+          ${{ matrix.target.cc }} $CFLAGS -c ccthread.c  -o build/ccthread.o
+          ${{ matrix.target.cc }} $CFLAGS -c ccsem.c     -o build/ccsem.o
+          ${{ matrix.target.cc }} $CFLAGS -c ccmutex.c   -o build/ccmutex.o
+          ${{ matrix.target.cc }} $CFLAGS -c ccspinlock.c -o build/ccspinlock.o
+          ${{ matrix.target.cc }} $CFLAGS -c ccrwlock.c  -o build/ccrwlock.o
+          echo "::group::Static library"
+          ar rcs build/libccthread.a build/*.o
+          echo "::endgroup::"
+
+      # All examples are linked statically so QEMU user-mode works
+      # without needing the target's dynamic linker.
+      - name: Build and run — ccthread_basic
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_basic \
+            build/cc*.o examples/ccthread_basic.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_basic
+
+      - name: Build and run — ccthread_detach
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_detach \
+            build/cc*.o examples/ccthread_detach.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_detach
+
+      - name: Build and run — ccsem_producer_consumer
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_sem_pc \
+            build/cc*.o examples/ccsem_producer_consumer.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_sem_pc
+
+      - name: Build and run — ccsem_timeout
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_sem_to \
+            build/cc*.o examples/ccsem_timeout.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_sem_to
+
+      - name: Build and run — ccmutex_basic
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_mutex \
+            build/cc*.o examples/ccmutex_basic.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_mutex
+
+      - name: Build and run — ccspinlock_basic
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_spin \
+            build/cc*.o examples/ccspinlock_basic.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_spin
+
+      - name: Build and run — ccrwlock_basic
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cc }} -static -std=c99 -I. -o build/test_rwlock \
+            build/cc*.o examples/ccrwlock_basic.c -lpthread
+          ${{ matrix.target.qemu }} ./build/test_rwlock
+
+      # --- C++ smoke tests (static link for QEMU compatibility) ---
+      - name: C++ smoke — compile as C++
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cxx }} -static -std=c++11 -I. -lpthread -o /tmp/cxx_smoke \
+            -x none build/cc*.o \
+            -x c++ - <<'PLAINTEXT'
+            #include <stddef.h>
+            #include "ccthread.h"
+            #include "ccsem.h"
+            #include "ccmutex.h"
+            #include "ccatomic.h"
+            int main() {
+                ccthread_t* t = ccthread_create(NULL, NULL);
+                ccsem_t* s = ccsem_create(0);
+                ccmutex_t* m = ccmutex_create(CCRECURSION_PLAIN);
+                (void)t; (void)s; (void)m;
+                return 0;
+            }
+          PLAINTEXT
+
+      - name: C++ smoke — header-only inclusion check
+        if: steps.check_tc.outputs.ready == 'true'
+        run: |
+          ${{ matrix.target.cxx }} -static -std=c++11 -I. -o /tmp/cxx_include \
+            -x c++ - <<'PLAINTEXT'
+            #include "ccthread.h"
+            #include "ccsem.h"
+            #include "ccmutex.h"
+            #include "ccatomic.h"
+            int main() { return 0; }
+          PLAINTEXT

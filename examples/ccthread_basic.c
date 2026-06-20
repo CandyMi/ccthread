@@ -78,7 +78,28 @@ int main(void) {
     }
 
     /* ----------------------------------------------------------- */
-    /*  4. Mixed parallel work                                     */
+    /*  4. Thread ID: gettid()                                     */
+    /* ----------------------------------------------------------- */
+    {
+        uint32_t main_tid = ccthread_gettid(NULL);
+        printf("main thread tid: %u\n", main_tid);
+
+        ccthread_t* t = ccthread_create(print_worker, "gettid-test");
+        uint32_t child_tid = ccthread_gettid(t);
+        printf("child thread tid: %u\n", child_tid);
+        ccthread_join(t, NULL);
+
+        /* main_tid and child_tid must differ */
+        if (main_tid == child_tid || main_tid == 0 || child_tid == 0) {
+            fprintf(stderr, "ERROR: unexpected TIDs (%u, %u)\n",
+                    (unsigned)main_tid, (unsigned)child_tid);
+            return 1;
+        }
+        printf("  tid check: ok\n");
+    }
+
+    /* ----------------------------------------------------------- */
+    /*  5. Mixed parallel work                                     */
     /* ----------------------------------------------------------- */
     {
         ccthread_t* t1 = ccthread_create(print_worker, "hello");
