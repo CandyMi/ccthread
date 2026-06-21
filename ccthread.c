@@ -311,8 +311,26 @@ int ccthread_detach(ccthread_t* thread) {
 /* ================================================================== */
 
 void ccthread_exit(void* result) {
-    if (ccthread_self_ptr) 
+    if (ccthread_self_ptr) {
         ccthread_self_ptr->result = result;
+        ccatomic_store_release(&ccthread_self_ptr->finished, 1);
+
+        /* If detach has already been called, race via cleanup_claimed to
+         * free the struct before the OS terminates the thread.  Exactly
+         * one of us (exit or detach) wins — the loser skips. */
+        if (ccatomic_load_acquire(&ccthread_self_ptr->detached)) {
+            if (ccatomic_exchange_acquire(
+                    &ccthread_self_ptr->cleanup_claimed, 1) == 0) {
+#ifdef CCTHREAD_PLATFORM_WINDOWS
+                if (ccthread_self_ptr->handle)
+                    CloseHandle(ccthread_self_ptr->handle);
+#endif
+                free(ccthread_self_ptr);
+                ccthread_self_ptr = NULL;
+            }
+        }
+    }
+
 #ifdef CCTHREAD_PLATFORM_WINDOWS
     ExitThread((DWORD)0);
 #else
